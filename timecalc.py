@@ -199,13 +199,13 @@ def parse_response(response_text):
     div_activities = htmltree.get_element_by_id('divActivities', None)
     if div_activities is None:
         print('Error accessing time information. Login may be incorrect.')
-        return
+        return ([], [])
     activities_text = div_activities.getchildren()[0].text_content()
     times_in = re.findall(r'In(\d{2}\/\d{2}\/\d{4} \d{2}:\d{2} (?:AM|PM))', activities_text)
     if not times_in:
         print('You have not clocked in today.')
         print('You have {} hours remaining.'.format(WORK_HOURS.total_seconds() / 3600))
-        return
+        return ([], [])
     times_out = re.findall(r'Out(\d{2}\/\d{2}\/\d{4} \d{2}:\d{2} (?:AM|PM))', activities_text)
     parsed_in = [datetime.strptime(strtime, '%m/%d/%Y %I:%M %p') for strtime in times_in]
     parsed_out = [datetime.strptime(strtime, '%m/%d/%Y %I:%M %p') for strtime in times_out]
@@ -273,8 +273,7 @@ def print_clocktable(parsed_in, parsed_out):
     # If not currently clocked in, done
     except StopIteration:
         print('')
-        time_to_out = time_remaining + datetime.now()
-        return time_to_out
+        return None
     finally:
         print('You have {} hours remaining.'.format(hours_delta(time_remaining)))
 
@@ -316,6 +315,9 @@ def main_withlogin(username, password):
         elif command == 'out':
             clock_out(session, cust_id, emp_id)
         elif command == 'auto':
+            if not time_to_out:
+                print('Cannot auto-clockout: you have not clocked in')
+                return
             adj_time_out = time_to_out + timedelta(minutes=2) # Add a buffer to be safe
             scheduleout.schedule(adj_time_out.strftime('%H:%M'))
             print('Automatic clock-out scheduled for {0:%I:%M %p}.'.format(adj_time_out))

@@ -1,11 +1,38 @@
+"""Scriptable entry point for running the autoclocker program. On first run, user is prompted for
+credentials to be saved. Subsequent executions will login automatically. Note that credentials
+will be stored in plaintext in the configuration file. If this is not desired, use `timecalc.py`
+instead.
+
+Usage:
+
+`python autotimecalc.py [in|out]`
+
+If run with no arguments, the program runs in interactive mode.
+
+Arguments:
+* `in`: clock user in noninteractively.
+* `out`: clock user out noninteractively.
+"""
 import sys
 import configparser
-import getpass
 import timecalc
 
 CONF_PATH = 'config.ini'
 
 def read_config():
+    """Retrieve credentials from configuration file. If no configuration file is present, creates
+    one and saves user-supplied credentials to it.
+
+    Returns: 2-tuple.
+    * `user`: Username.
+    * `key`: Password.
+
+    Side effects:
+    * Reads global variable `CONF_PATH`.
+    * Reads and writes configuration file.
+    * Prints to standard output.
+    * Reads from standard input.
+    """
     config = configparser.ConfigParser()
     conf_list = config.read(CONF_PATH)
     if not conf_list:
@@ -24,7 +51,9 @@ def read_config():
         key = config['DEFAULT']['key']
         return (user, key)
 
+
 def main():
+    """Main entry point."""
     (user, key) = read_config()
     if len(sys.argv) < 2:
         timecalc.main_withlogin(user, key)

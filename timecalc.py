@@ -16,6 +16,7 @@ Two configurable constants are defined:
 """
 
 from datetime import datetime, timedelta
+import configparser
 import getpass
 import re
 import requests
@@ -24,6 +25,22 @@ import scheduleout
 
 WORK_HOURS = timedelta(hours=8)
 HOURS_RESOLUTION = timedelta(minutes=15)
+
+CONF_PATH = 'config.ini'
+
+def read_config():
+    global WORK_HOURS, HOURS_RESOLUTION
+    config = configparser.ConfigParser()
+    config.read(CONF_PATH)
+    if 'work_hours' not in config['DEFAULT'] or 'hours_resolution' not in config['DEFAULT']:
+        print('Configuration not found. Initializing defaults.')
+        config['DEFAULT']['work_hours'] = str(WORK_HOURS.total_seconds() / 3600)
+        config['DEFAULT']['hours_resolution'] = str(HOURS_RESOLUTION.total_seconds() / 60)
+        with open(CONF_PATH, 'w') as conf_file:
+            config.write(conf_file)
+    else:
+        WORK_HOURS = timedelta(hours=config.getfloat('DEFAULT', 'work_hours'))
+        HOURS_RESOLUTION = timedelta(minutes=config.getfloat('DEFAULT', 'hours_resolution'))
 
 def login_prompt():
     """Prompt user for login credentials.
@@ -280,6 +297,7 @@ def print_clocktable(parsed_in, parsed_out):
 
 def main_silent_clockin(username, password):
     """Noninteractive entry point. Clocks in the user with the supplied credentials."""
+    read_config()
     (session, response) = login_session(username, password)
     (cust_id, emp_id) = parse_ids(response.text)
     clock_in(session, cust_id, emp_id)
@@ -291,6 +309,7 @@ def main_silent_clockin(username, password):
 
 def main_silent_clockout(username, password):
     """Noninteractive entry point. Clocks out the user with the supplied credentials."""
+    read_config()
     (session, response) = login_session(username, password)
     (cust_id, emp_id) = parse_ids(response.text)
     clock_out(session, cust_id, emp_id)
@@ -302,6 +321,7 @@ def main_silent_clockout(username, password):
 
 def main_withlogin(username, password):
     """Entry point for interactive use with supplied credentials."""
+    read_config()
     (session, response) = login_session(username, password)
     while True:
         response = refresh_session(session)
@@ -328,6 +348,7 @@ def main_withlogin(username, password):
 
 def main():
     """Main entry point for interactive use. Prompts user for credentials."""
+    read_config()
     (username, password) = login_prompt()
     main_withlogin(username, password)
 

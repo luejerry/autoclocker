@@ -34,15 +34,13 @@ def read_config():
     * Reads from standard input.
     """
     config = configparser.ConfigParser()
-    conf_list = config.read(CONF_PATH)
-    if not conf_list:
-        print(CONF_PATH + ' not found. Initializing new configuration.')
+    config.read(CONF_PATH)
+    if 'user' not in config['DEFAULT'] or 'key' not in config['DEFAULT']:
+        print('Saved credentials not found.')
         print('Your username and password will be saved. Exit and run timecalc.py instead if you do not want this.')
         (user, key) = timecalc.login_prompt()
-        config['DEFAULT'] = {
-            'user': user,
-            'key': key
-        }
+        config['DEFAULT']['user'] = user
+        config['DEFAULT']['key'] = key
         with open(CONF_PATH, 'w') as conf_file:
             config.write(conf_file)
         return (user, key)

@@ -29,6 +29,7 @@ HOURS_RESOLUTION = timedelta(minutes=15)
 CONF_PATH = 'config.ini'
 
 def read_config():
+    # TODO: get rid of globals
     global WORK_HOURS, HOURS_RESOLUTION
     config = configparser.ConfigParser()
     config.read(CONF_PATH)
@@ -41,6 +42,7 @@ def read_config():
     else:
         WORK_HOURS = timedelta(hours=config.getfloat('DEFAULT', 'work_hours'))
         HOURS_RESOLUTION = timedelta(minutes=config.getfloat('DEFAULT', 'hours_resolution'))
+    print("You are working {} hours today.".format(WORK_HOURS.total_seconds() / 3600))
 
 def login_prompt():
     """Prompt user for login credentials.
@@ -331,12 +333,18 @@ def main_withlogin(username, password):
         (cust_id, emp_id) = parse_ids(response.text)
         command = input('Type "in" to clock in, "out" to clock out, "auto" to auto-clockout, or anything else to exit: ')
         if command == 'in':
+            if time_to_out:
+                print('Cannot clock in: you are already clocked in.')
+                return
             clock_in(session, cust_id, emp_id)
         elif command == 'out':
+            if not time_to_out:
+                print('Cannot clock out: you are not clocked in.')
+                return
             clock_out(session, cust_id, emp_id)
         elif command == 'auto':
             if not time_to_out:
-                print('Cannot auto-clockout: you have not clocked in')
+                print('Cannot auto-clockout: you have not clocked in.')
                 return
             adj_time_out = time_to_out + timedelta(minutes=2) # Add a buffer to be safe
             scheduleout.schedule(adj_time_out.strftime('%H:%M'))

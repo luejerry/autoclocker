@@ -243,7 +243,9 @@ def print_clocktable(parsed_in, parsed_out):
     * `parsed_in` : list of datetime objects corresponding to clock-in times.
     * `parsed_out`: list of datetime objects corresponding to clock-out times.
 
-    Returns: Recommended clock out `datetime`.
+    Returns: 2-tuple.
+    * `time_to_out`: Recommended clock out `datetime`.
+    * `time_next_out`: `datetime` of the next `HOURS_RESOLUTION` interval.
 
     Side effects:
     * Prints to standard output.
@@ -288,11 +290,11 @@ def print_clocktable(parsed_in, parsed_out):
                                 '('+str(hours_delta(time_next_worked))+')'))
         print('')
         print('You should clock out at {}.'.format(tformatter(time_to_out)))
-        return time_to_out
+        return (time_to_out, time_next_out)
     # If not currently clocked in, done
     except StopIteration:
         print('')
-        return None
+        return (None, None)
     finally:
         print('You have {} hours remaining.'.format(hours_delta(time_remaining)))
 
@@ -328,10 +330,10 @@ def main_withlogin(username, password):
     while True:
         response = refresh_session(session)
         (times_in, times_out) = parse_response(response.text)
-        time_to_out = print_clocktable(times_in, times_out)
+        (time_to_out, time_next_out) = print_clocktable(times_in, times_out)
         print('')
         (cust_id, emp_id) = parse_ids(response.text)
-        command = input('Type "in" to clock in, "out" to clock out, "auto" to auto-clockout, or anything else to exit: ')
+        command = input('Type "in" to clock in, "out" to clock out, "auto" to auto-clockout, "next" to auto-clockout at the next interval, or anything else to exit: ')
         if command == 'in':
             if time_to_out:
                 print('Cannot clock in: you are already clocked in.')
@@ -347,6 +349,13 @@ def main_withlogin(username, password):
                 print('Cannot auto-clockout: you have not clocked in.')
                 return
             adj_time_out = time_to_out + timedelta(minutes=2) # Add a buffer to be safe
+            scheduleout.schedule(adj_time_out.strftime('%H:%M'))
+            print('Automatic clock-out scheduled for {0:%I:%M %p}.'.format(adj_time_out))
+        elif command == 'next':
+            if not time_next_out:
+                print('Cannot auto-clockout: you have not clocked in.')
+                return
+            adj_time_out = time_next_out + timedelta(minutes=2)
             scheduleout.schedule(adj_time_out.strftime('%H:%M'))
             print('Automatic clock-out scheduled for {0:%I:%M %p}.'.format(adj_time_out))
         else:

@@ -8,7 +8,7 @@ execute the auto clock-out (Task Scheduler on Windows, `at` on Linux/MacOS).
 * Python 3
     * `lxml` package
     * `requests` package
-* Powershell (on Windows)
+* Powershell with unsigned script execution enabled (on Windows)
 
 # Setup and run
 1. Install `requests` and `lxml`.

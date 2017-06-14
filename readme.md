@@ -19,7 +19,7 @@ Windows, `at` on Linux/MacOS).
 * Python 3
     * `requests`
     * `lxml`
-* Powershell with unsigned script execution enabled (on Windows)
+* Windows only: Powershell with unsigned script execution enabled
 
 ## Setup and run in interactive mode
 1. Install `requests` and `lxml`.

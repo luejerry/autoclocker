@@ -55,6 +55,16 @@ To cancel a scheduled automatic clockout:
 * Windows: delete the `ClockOut` task from Task Scheduler.
 * Linux/Mac: run `atq` to find the clock out job, then `atrm` to delete it.
 
+## Configuration
+
+Configuration data is stored in `config.ini`, which is automatically generated
+on first run.
+
+* `work_hours`: total number of hours to work per day, in hours
+* `hours_resolution`: minimum paid time increment, in minutes
+
+Delete `config.ini` to restore default configuration settings.
+
 ## Todo
 * Add error checking for failure adding job.
 * Remove use of mutable global variables.

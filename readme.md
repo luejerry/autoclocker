@@ -70,6 +70,7 @@ Delete `config.ini` to restore default configuration settings.
 ## Todo
 * Add error checking for failure adding job.
 * Remove use of mutable global variables.
+* Handle auth session timeout gracefully instead of crashing.
 * ~~Add support for configuration file.~~
 * ~~Add feature to auto-clockout after next time interval.~~
 * ~~Document auxiliary scripts.~~

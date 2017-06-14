@@ -8,9 +8,9 @@ of hours in [ADP](http://workforcenow.adp.com) each day. No longer must you
 
 ## Features
 
-* Calculates exact clock-out time to log exactly 8 hours across all shifts.
-* Accounts for pay hours being counted in 15 minute increments.
-* Hours per day and minimum paid increment are configurable via config file.
+* Calculates exact clock-out time to log exactly 8 hours across all shifts
+(configurable).
+* Accounts for pay hours being counted in 15 minute increments (configurable).
 * Schedule an automatic clock out at the completion of daily hours or the next
 paid increment, using the platform native job scheduler (Task Scheduler on
 Windows, `at` on Linux/MacOS).

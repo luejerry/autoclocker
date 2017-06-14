@@ -14,6 +14,8 @@ of hours in [ADP](http://workforcenow.adp.com) each day. No longer must you
 * Schedule an automatic clock out at the completion of daily hours or the next
 paid increment, using the platform native job scheduler (Task Scheduler on
 Windows, `at` on Linux/MacOS).
+* Displays an alert after automatic clockout, reminding you to actually go
+home.
 
 ## Requirements
 * Python 3

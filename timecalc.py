@@ -56,26 +56,6 @@ def login_prompt():
     return (user, password)
 
 
-def test_login(user, password):
-    """Attempt login to ADP with user supplied credentials.
-
-    Returns: Text content of server response. On successful login, should be main web application
-    page.
-
-    Side effects: Prints to standard output.
-    """
-    url = 'https://workforcenow.adp.com/ezLaborManagerNet/UI4/WFN/Portlet/MyTime.aspx?dojo.preventCache=1496267721438'
-    form = {
-        'target': url,
-        'USER': user,
-        'PASSWORD': password
-    }
-    print('Logging in to https://workforcenow.adp.com...', end=' ')
-    response = requests.post('https://workforcenow.adp.com/siteminderagent/forms/login.fcc', form)
-    print('Connected.')
-    return response.text
-
-
 def login_session(user, password):
     """Initiate an authenticated session with the supplied credentials. A failed login due to
     invalid credentials will not fail at this stage and must be checked by examining the contents

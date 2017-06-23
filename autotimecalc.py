@@ -16,8 +16,10 @@ Arguments:
 import sys
 import configparser
 import timecalc
+from excepts import ParseFailure
 
 CONF_PATH = 'config.ini'
+LOG_PATH = 'errors.log'
 
 def read_config():
     """Retrieve credentials from configuration file. If no configuration file is present, creates
@@ -63,4 +65,13 @@ def main():
         timecalc.main_silent_clockout(user, key)
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except ParseFailure as e:
+        with open(LOG_PATH, 'a', encoding='utf-8') as log:
+            log.write('{}\n{}\n'.format(str(e), e.log()))
+        raise e
+    except Exception as e:
+        with open(LOG_PATH, 'a', encoding='utf-8') as log:
+            log.write(str(e))
+        raise e

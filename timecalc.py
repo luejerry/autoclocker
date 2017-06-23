@@ -348,7 +348,7 @@ def main_withlogin(username: str, password: str) -> None:
         command = input(
             'Type "in" to clock in, "out" to clock out, "auto" to auto-clockout,'
             ' "next" to auto-clockout at the next interval, "r" to refresh,'
-            'or anything else to exit: ')
+            ' or anything else to exit: ')
         if command == 'in':
             if time_to_out:
                 print('Cannot clock in: you are already clocked in.')

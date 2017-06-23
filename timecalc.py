@@ -209,7 +209,7 @@ def parse_response(response_text):
         raise ParseFailure('Error getting server time. The server application may have changed.',
                            response_text)
     parsed_time = datetime.strptime(current_time.group(1), '%B %d, %Y %H:%M:%S')
-    print('Current server time: ' + str(parsed_time))
+    print('Current server time:', parsed_time.strftime('%I:%M %p'))
     times_in = re.findall(r'In(\d{2}\/\d{2}\/\d{4} \d{2}:\d{2} (?:AM|PM))', activities_text)
     if not times_in:
         print('You have not clocked in today.')
@@ -225,7 +225,7 @@ def parse_response(response_text):
     return (parsed_in, parsed_out, parsed_time)
 
 
-def round_timedate(time_date: datetime, time_resolution: timedelta):
+def round_datetime(time_date: datetime, time_resolution: timedelta) -> datetime:
     minute_res = time_resolution.total_seconds() / 60
     minute_rounded = round(time_date.minute / minute_res) * minute_res
     hour_adj = time_date.hour + minute_rounded // 60
@@ -234,13 +234,14 @@ def round_timedate(time_date: datetime, time_resolution: timedelta):
     return datetime_adj
 
 
-def print_clocktable(parsed_in, parsed_out):
+def print_clocktable(parsed_in, parsed_out, current_time):
     """Display timesheet for the present day. Also calculates remaining hours and displays
     recommended clock out time.
 
     Parameters:
     * `parsed_in` : list of datetime objects corresponding to clock-in times.
     * `parsed_out`: list of datetime objects corresponding to clock-out times.
+    * `current_time`: current datetime of the server.
 
     Returns: 2-tuple.
     * `time_to_out`: Recommended clock out `datetime`.
@@ -252,23 +253,23 @@ def print_clocktable(parsed_in, parsed_out):
     """
     # Utility to stringify a datetime as 'HH:mm AM/PM'
     tformatter = lambda t: t.strftime('%I:%M %p')
-    # Utility to round a timedelta down to the nearest resolution
-    floor_delta = lambda t: t // HOURS_RESOLUTION * HOURS_RESOLUTION
     # Utility to convert a timedelta to numeric hours
     hours_delta = lambda t: round(t.total_seconds() / 3600, 2)
 
-    print('The current time is: {}'.format(tformatter(datetime.now())))
     format_str = '{:12} {:12} {:>6}'
     print('')
     print(format_str.format('Clocked in', 'Clocked out', 'Hours'))
     time_worked = timedelta()
-    iter_in = iter(parsed_in)
+
+    rounded_in = [round_datetime(dt, HOURS_RESOLUTION) for dt in parsed_in]
+    rounded_out = [round_datetime(dt, HOURS_RESOLUTION) for dt in parsed_out]
+    iter_in = iter(rounded_in)
 
     # Print the timesheet
-    for time_out in parsed_out:
+    for time_out in rounded_out:
         # Assume that len(time_in) is always len(time_out) or len(time_out) + 1
         time_in = next(iter_in)
-        time_worked += floor_delta(time_out - time_in)
+        time_worked += time_out - time_in
         print(format_str.format(tformatter(time_in), tformatter(time_out),
                                 round(time_worked.total_seconds() / 3600, 2)))
     time_remaining = WORK_HOURS - time_worked
@@ -277,12 +278,12 @@ def print_clocktable(parsed_in, parsed_out):
     try:
         time_in = next(iter_in)
         # Next soonest clock-out time that will get counted
-        time_next_out = floor_delta(datetime.now() - time_in + HOURS_RESOLUTION) + time_in
+        time_next_out = round_datetime(current_time + HOURS_RESOLUTION, HOURS_RESOLUTION)
         time_next_worked = time_next_out - time_in
 
         # Time to clock-out that completes remaining hours for the day
-        time_to_out = time_in + time_remaining
-        time_remaining -= floor_delta(datetime.now() - time_in)
+        time_to_out = round_datetime(time_in + time_remaining, HOURS_RESOLUTION)
+        time_remaining -= (round_datetime(current_time, HOURS_RESOLUTION) - time_in)
 
         print(format_str.format(tformatter(time_in),
                                 '('+tformatter(time_next_out)+')',
@@ -306,7 +307,7 @@ def main_silent_clockin(username, password):
     clock_in(session, cust_id, emp_id)
     response = refresh_session(session)
     (times_in, times_out, server_time) = parse_response(response.text)
-    print_clocktable(times_in, times_out)
+    print_clocktable(times_in, times_out, server_time)
     input('Press enter to exit...')
 
 
@@ -318,7 +319,7 @@ def main_silent_clockout(username, password):
     clock_out(session, cust_id, emp_id)
     response = refresh_session(session)
     (times_in, times_out, server_time) = parse_response(response.text)
-    print_clocktable(times_in, times_out)
+    print_clocktable(times_in, times_out, server_time)
     input('Press enter to exit...')
 
 
@@ -329,10 +330,10 @@ def main_withlogin(username, password):
     while True:
         response = refresh_session(session)
         (times_in, times_out, server_time) = parse_response(response.text)
-        (time_to_out, time_next_out) = print_clocktable(times_in, times_out)
+        (time_to_out, time_next_out) = print_clocktable(times_in, times_out, server_time)
         print('')
         (cust_id, emp_id) = parse_ids(response.text)
-        command = input('Type "in" to clock in, "out" to clock out, "auto" to auto-clockout, "next" to auto-clockout at the next interval, or anything else to exit: ')
+        command = input('Type "in" to clock in, "out" to clock out, "auto" to auto-clockout, "next" to auto-clockout at the next interval, "r" to refresh, or anything else to exit: ')
         if command == 'in':
             if time_to_out:
                 print('Cannot clock in: you are already clocked in.')
@@ -347,7 +348,7 @@ def main_withlogin(username, password):
             if not time_to_out:
                 print('Cannot auto-clockout: you have not clocked in.')
                 return
-            adj_time_out = time_to_out + timedelta(minutes=2) # Add a buffer to be safe
+            adj_time_out = time_to_out
             scheduleout.schedule(adj_time_out.strftime('%H:%M'))
             print('Automatic clock-out scheduled for {0:%I:%M %p}.'.format(adj_time_out))
         elif command == 'next':
@@ -357,6 +358,8 @@ def main_withlogin(username, password):
             adj_time_out = time_next_out + timedelta(minutes=2)
             scheduleout.schedule(adj_time_out.strftime('%H:%M'))
             print('Automatic clock-out scheduled for {0:%I:%M %p}.'.format(adj_time_out))
+        elif command == 'r':
+            (session, response) = login_session(username, password)
         else:
             return
     # input('Press enter to continue...')

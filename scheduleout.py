@@ -4,7 +4,7 @@ on Windows, `at` on Mac/Linux).
 import subprocess
 import os
 
-def schedule(time):
+def schedule(time: str) -> None:
     """Schedule a clock-out job at the specified time today. Clock-out will be executed at the
     scheduled machine-local time.
 

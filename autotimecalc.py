@@ -21,7 +21,7 @@ from excepts import ParseFailure
 CONF_PATH = 'config.ini'
 LOG_PATH = 'errors.log'
 
-def read_config():
+def read_config() -> (str, str):
     """Retrieve credentials from configuration file. If no configuration file is present, creates
     one and saves user-supplied credentials to it.
 
@@ -39,7 +39,8 @@ def read_config():
     config.read(CONF_PATH)
     if 'user' not in config['DEFAULT'] or 'key' not in config['DEFAULT']:
         print('Saved credentials not found.')
-        print('Your username and password will be saved. Exit and run timecalc.py instead if you do not want this.')
+        print('Your username and password will be saved.',
+              'Exit and run timecalc.py instead if you do not want this.')
         (user, key) = timecalc.login_prompt()
         config['DEFAULT']['user'] = user
         config['DEFAULT']['key'] = key
@@ -52,7 +53,7 @@ def read_config():
         return (user, key)
 
 
-def main():
+def main() -> None:
     """Main entry point."""
     (user, key) = read_config()
     if len(sys.argv) < 2:
@@ -67,11 +68,11 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except ParseFailure as e:
+    except ParseFailure as ex:
         with open(LOG_PATH, 'a', encoding='utf-8') as log:
-            log.write('{}\n{}\n'.format(str(e), e.log()))
-        raise e
-    except Exception as e:
+            log.write('{}\n{}\n'.format(str(ex), ex.log()))
+        raise ex
+    except Exception as ex:
         with open(LOG_PATH, 'a', encoding='utf-8') as log:
-            log.write(str(e))
-        raise e
+            log.write(str(ex) + '\n')
+        raise ex

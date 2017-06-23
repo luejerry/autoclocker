@@ -29,7 +29,8 @@ HOURS_RESOLUTION = timedelta(minutes=15)
 
 CONF_PATH = 'config.ini'
 
-def read_config():
+def read_config() -> None:
+    """Read settings from configuration file to global vars."""
     # TODO: get rid of globals
     global WORK_HOURS, HOURS_RESOLUTION
     config = configparser.ConfigParser()
@@ -45,7 +46,7 @@ def read_config():
         HOURS_RESOLUTION = timedelta(minutes=config.getfloat('DEFAULT', 'hours_resolution'))
     print("You are working {} hours today.".format(WORK_HOURS.total_seconds() / 3600))
 
-def login_prompt():
+def login_prompt() -> (str, str):
     """Prompt user for login credentials.
 
     Returns: 2-tuple.
@@ -57,7 +58,7 @@ def login_prompt():
     return (user, password)
 
 
-def login_session(user, password):
+def login_session(user: str, password: str) -> (requests.Session, requests.Response):
     """Initiate an authenticated session with the supplied credentials. A failed login due to
     invalid credentials will not fail at this stage and must be checked by examining the contents
     of the returned session and response objects.
@@ -81,7 +82,7 @@ def login_session(user, password):
     return (session, response)
 
 
-def refresh_session(session):
+def refresh_session(session: requests.Session) -> requests.Response:
     """GETs the web application page in the context of an authenticated session.
 
     Parameters:
@@ -96,7 +97,7 @@ def refresh_session(session):
     return response
 
 
-def parse_ids(response_text):
+def parse_ids(response_text: str) -> (str, str):
     """Scrapes customer (employer) and employee IDs from the web application page. These are used
     to send clock-in/out requests.
 
@@ -114,7 +115,7 @@ def parse_ids(response_text):
     return (cust_id, emp_id)
 
 
-def clock_inout(session, cust_id, emp_id, is_in):
+def clock_inout(session: requests.Session, cust_id: str, emp_id: str, is_in: bool) -> None:
     """Clocks user in or out. Requires an authenticated session. The customer and employee IDs
     must be scraped from the authenticated web application.
 
@@ -143,12 +144,12 @@ def clock_inout(session, cust_id, emp_id, is_in):
     return
 
 
-def clock_in(session, cust_id, emp_id):
+def clock_in(session: requests.Session, cust_id: str, emp_id: str) -> None:
     """Clocks user in. Requires an authenticated session. The customer and employee IDs must
     be scraped from the authenticated web application.
 
     Parameters:
-    * `session`: An authenticated `request.Session` object.
+    * `session`: An authenticated `requests.Session` object.
     * `cust_id`: ID of ADP customer (employer).
     * `emp_id`: ID of employee.
 
@@ -160,7 +161,7 @@ def clock_in(session, cust_id, emp_id):
     return
 
 
-def clock_out(session, cust_id, emp_id):
+def clock_out(session: requests.Session, cust_id: str, emp_id: str) -> None:
     """Clocks user out. Requires an authenticated session. The customer and employee IDs must
     be scraped from the authenticated web application.
 
@@ -177,7 +178,7 @@ def clock_out(session, cust_id, emp_id):
     return
 
 
-def parse_response(response_text):
+def parse_response(response_text: str) -> (list, list, datetime):
     """Parse the clock in/clock out data from ADP page and calculate remaining hours and time to
     clock out.
 
@@ -188,6 +189,8 @@ def parse_response(response_text):
     * `parsed_in`: List of clock-in `datetime` objects.
     * `parsed_out`: List of clock-out `datetime` objects.
     * `parsed_time`: Current `datetime` from server.
+
+    Throws: `ParseFailure` if timesheet data could not be parsed from text.
 
     Side effects: Prints to standard output.
     """
@@ -205,9 +208,10 @@ def parse_response(response_text):
     activities_text = div_activities.getchildren()[0].text_content()
     current_time = re.search(r"""var sDate = ['"]([^'"]+)['"];""", response_text)
     if current_time is None:
-        print ('Error getting server time. The server application may have changed.')
-        raise ParseFailure('Error getting server time. The server application may have changed.',
-                           response_text)
+        print('Error getting server time. The server application may have changed.')
+        raise ParseFailure(
+            'Error getting server time. The server application may have changed.',
+            response_text)
     parsed_time = datetime.strptime(current_time.group(1), '%B %d, %Y %H:%M:%S')
     print('Current server time:', parsed_time.strftime('%I:%M %p'))
     times_in = re.findall(r'In(\d{2}\/\d{2}\/\d{4} \d{2}:\d{2} (?:AM|PM))', activities_text)
@@ -218,23 +222,29 @@ def parse_response(response_text):
     times_out = re.findall(r'Out(\d{2}\/\d{2}\/\d{4} \d{2}:\d{2} (?:AM|PM))', activities_text)
     parsed_in = [datetime.strptime(strtime, '%m/%d/%Y %I:%M %p') for strtime in times_in]
     parsed_out = [datetime.strptime(strtime, '%m/%d/%Y %I:%M %p') for strtime in times_out]
-
-    # Display timesheet information
-    # print_clocktable(parsed_in, parsed_out)
-
     return (parsed_in, parsed_out, parsed_time)
 
 
 def round_datetime(time_date: datetime, time_resolution: timedelta) -> datetime:
+    """Round a `datetime` to the nearest clock interval.
+
+    Parameters:
+    * `time_date`: `datetime` to round.
+    * `time_resolution`: Clock interval to round to, e.g. 15 minutes.
+
+    Returns: rounded `datetime`.
+    """
     minute_res = time_resolution.total_seconds() / 60
     minute_rounded = round(time_date.minute / minute_res) * minute_res
     hour_adj = time_date.hour + minute_rounded // 60
     minute_adj = minute_rounded % 60
-    datetime_adj = datetime(time_date.year, time_date.month, time_date.day, hour=int(hour_adj), minute=int(minute_adj))
+    datetime_adj = datetime(time_date.year, time_date.month, time_date.day,
+                            hour=int(hour_adj), minute=int(minute_adj))
     return datetime_adj
 
 
-def print_clocktable(parsed_in, parsed_out, current_time):
+def print_clocktable(
+        parsed_in: list, parsed_out: list, current_time: datetime) -> (datetime, timedelta):
     """Display timesheet for the present day. Also calculates remaining hours and displays
     recommended clock out time.
 
@@ -270,8 +280,9 @@ def print_clocktable(parsed_in, parsed_out, current_time):
         # Assume that len(time_in) is always len(time_out) or len(time_out) + 1
         time_in = next(iter_in)
         time_worked += time_out - time_in
-        print(format_str.format(tformatter(time_in), tformatter(time_out),
-                                round(time_worked.total_seconds() / 3600, 2)))
+        print(format_str.format(
+            tformatter(time_in), tformatter(time_out),
+            round(time_worked.total_seconds() / 3600, 2)))
     time_remaining = WORK_HOURS - time_worked
 
     # If currently clocked in, calculate clock out time
@@ -285,9 +296,10 @@ def print_clocktable(parsed_in, parsed_out, current_time):
         time_to_out = round_datetime(time_in + time_remaining, HOURS_RESOLUTION)
         time_remaining -= (round_datetime(current_time, HOURS_RESOLUTION) - time_in)
 
-        print(format_str.format(tformatter(time_in),
-                                '('+tformatter(time_next_out)+')',
-                                '('+str(hours_delta(time_next_worked))+')'))
+        print(format_str.format(
+            tformatter(time_in),
+            '('+tformatter(time_next_out)+')',
+            '('+str(hours_delta(time_next_worked))+')'))
         print('')
         print('You should clock out at {}.'.format(tformatter(time_to_out)))
         return (time_to_out, time_next_out)
@@ -299,7 +311,7 @@ def print_clocktable(parsed_in, parsed_out, current_time):
         print('You have {} hours remaining.'.format(hours_delta(time_remaining)))
 
 
-def main_silent_clockin(username, password):
+def main_silent_clockin(username: str, password: str) -> None:
     """Noninteractive entry point. Clocks in the user with the supplied credentials."""
     read_config()
     (session, response) = login_session(username, password)
@@ -311,7 +323,7 @@ def main_silent_clockin(username, password):
     input('Press enter to exit...')
 
 
-def main_silent_clockout(username, password):
+def main_silent_clockout(username: str, password: str) -> None:
     """Noninteractive entry point. Clocks out the user with the supplied credentials."""
     read_config()
     (session, response) = login_session(username, password)
@@ -323,7 +335,7 @@ def main_silent_clockout(username, password):
     input('Press enter to exit...')
 
 
-def main_withlogin(username, password):
+def main_withlogin(username: str, password: str) -> None:
     """Entry point for interactive use with supplied credentials."""
     read_config()
     (session, response) = login_session(username, password)
@@ -333,7 +345,10 @@ def main_withlogin(username, password):
         (time_to_out, time_next_out) = print_clocktable(times_in, times_out, server_time)
         print('')
         (cust_id, emp_id) = parse_ids(response.text)
-        command = input('Type "in" to clock in, "out" to clock out, "auto" to auto-clockout, "next" to auto-clockout at the next interval, "r" to refresh, or anything else to exit: ')
+        command = input(
+            'Type "in" to clock in, "out" to clock out, "auto" to auto-clockout,'
+            ' "next" to auto-clockout at the next interval, "r" to refresh,'
+            'or anything else to exit: ')
         if command == 'in':
             if time_to_out:
                 print('Cannot clock in: you are already clocked in.')
@@ -362,10 +377,9 @@ def main_withlogin(username, password):
             (session, response) = login_session(username, password)
         else:
             return
-    # input('Press enter to continue...')
 
 
-def main():
+def main() -> None:
     """Main entry point for interactive use. Prompts user for credentials."""
     read_config()
     (username, password) = login_prompt()

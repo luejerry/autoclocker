@@ -22,6 +22,7 @@ import re
 import requests
 from lxml import html
 import scheduleout
+from excepts import ParseFailure
 
 WORK_HOURS = timedelta(hours=8)
 HOURS_RESOLUTION = timedelta(minutes=15)
@@ -183,9 +184,10 @@ def parse_response(response_text):
     Parameters:
     * `response_text`: text of ADP page.
 
-    Returns: 2-tuple.
+    Returns: 3-tuple.
     * `parsed_in`: List of clock-in `datetime` objects.
     * `parsed_out`: List of clock-out `datetime` objects.
+    * `parsed_time`: Current `datetime` from server.
 
     Side effects: Prints to standard output.
     """
@@ -198,8 +200,16 @@ def parse_response(response_text):
     div_activities = htmltree.get_element_by_id('divActivities', None)
     if div_activities is None:
         print('Error accessing time information. Login may be incorrect.')
-        return ([], [])
+        raise ParseFailure('Error accessing time information. Login may be incorrect.',
+                           response_text)
     activities_text = div_activities.getchildren()[0].text_content()
+    current_time = re.search(r"""var sDate = ['"]([^'"]+)['"];""", response_text)
+    if current_time is None:
+        print ('Error getting server time. The server application may have changed.')
+        raise ParseFailure('Error getting server time. The server application may have changed.',
+                           response_text)
+    parsed_time = datetime.strptime(current_time.group(1), '%B %d, %Y %H:%M:%S')
+    print('Current server time: ' + str(parsed_time))
     times_in = re.findall(r'In(\d{2}\/\d{2}\/\d{4} \d{2}:\d{2} (?:AM|PM))', activities_text)
     if not times_in:
         print('You have not clocked in today.')
@@ -212,7 +222,16 @@ def parse_response(response_text):
     # Display timesheet information
     # print_clocktable(parsed_in, parsed_out)
 
-    return (parsed_in, parsed_out)
+    return (parsed_in, parsed_out, parsed_time)
+
+
+def round_timedate(time_date: datetime, time_resolution: timedelta):
+    minute_res = time_resolution.total_seconds() / 60
+    minute_rounded = round(time_date.minute / minute_res) * minute_res
+    hour_adj = time_date.hour + minute_rounded // 60
+    minute_adj = minute_rounded % 60
+    datetime_adj = datetime(time_date.year, time_date.month, time_date.day, hour=int(hour_adj), minute=int(minute_adj))
+    return datetime_adj
 
 
 def print_clocktable(parsed_in, parsed_out):
@@ -286,7 +305,7 @@ def main_silent_clockin(username, password):
     (cust_id, emp_id) = parse_ids(response.text)
     clock_in(session, cust_id, emp_id)
     response = refresh_session(session)
-    (times_in, times_out) = parse_response(response.text)
+    (times_in, times_out, server_time) = parse_response(response.text)
     print_clocktable(times_in, times_out)
     input('Press enter to exit...')
 
@@ -298,7 +317,7 @@ def main_silent_clockout(username, password):
     (cust_id, emp_id) = parse_ids(response.text)
     clock_out(session, cust_id, emp_id)
     response = refresh_session(session)
-    (times_in, times_out) = parse_response(response.text)
+    (times_in, times_out, server_time) = parse_response(response.text)
     print_clocktable(times_in, times_out)
     input('Press enter to exit...')
 
@@ -309,7 +328,7 @@ def main_withlogin(username, password):
     (session, response) = login_session(username, password)
     while True:
         response = refresh_session(session)
-        (times_in, times_out) = parse_response(response.text)
+        (times_in, times_out, server_time) = parse_response(response.text)
         (time_to_out, time_next_out) = print_clocktable(times_in, times_out)
         print('')
         (cust_id, emp_id) = parse_ids(response.text)

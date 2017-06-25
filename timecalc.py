@@ -24,13 +24,19 @@ from lxml import html
 import scheduleout
 from excepts import ParseFailure
 
+CONF_PATH = 'config.ini'
+
+# Default config values. These are overwritten by the config file if present
 WORK_HOURS = timedelta(hours=8)
 HOURS_RESOLUTION = timedelta(minutes=15)
 
-CONF_PATH = 'config.ini'
-
 def read_config() -> None:
-    """Read settings from configuration file to global vars."""
+    """Read settings from configuration file to global vars.
+    
+    Side effects:
+    * Reads and writes to file system.
+    * Writes to global vars.
+    """
     # TODO: get rid of globals
     global WORK_HOURS, HOURS_RESOLUTION
     config = configparser.ConfigParser()
@@ -46,10 +52,11 @@ def read_config() -> None:
         HOURS_RESOLUTION = timedelta(minutes=config.getfloat('DEFAULT', 'hours_resolution'))
     print("You are working {} hours today.".format(WORK_HOURS.total_seconds() / 3600))
 
+
 def login_prompt() -> (str, str):
     """Prompt user for login credentials.
 
-    Returns: 2-tuple.
+    Returns:
     * `user`: Username string.
     * `password`: Password string.
     """
@@ -63,7 +70,7 @@ def login_session(user: str, password: str) -> (requests.Session, requests.Respo
     invalid credentials will not fail at this stage and must be checked by examining the contents
     of the returned session and response objects.
 
-    Returns: 2-tuple.
+    Returns:
     * `session`: `requests.Session` object. On successful login, should contain the necessary
       authentication cookies.
     * `response`: `requests.Response` object of server response. On successful login, should
@@ -104,7 +111,7 @@ def parse_ids(response_text: str) -> (str, str):
     Parameters:
     * `response_text`: Text content of web application page.
 
-    Returns: 2-tuple.
+    Returns:
     * `cust_id`: customer ID string.
     * `emp_id`: employee ID string.
 
@@ -185,7 +192,7 @@ def parse_response(response_text: str) -> (list, list, datetime):
     Parameters:
     * `response_text`: text of ADP page.
 
-    Returns: 3-tuple.
+    Returns:
     * `parsed_in`: List of clock-in `datetime` objects.
     * `parsed_out`: List of clock-out `datetime` objects.
     * `parsed_time`: Current `datetime` from server.
@@ -253,7 +260,7 @@ def print_clocktable(
     * `parsed_out`: list of datetime objects corresponding to clock-out times.
     * `current_time`: current datetime of the server.
 
-    Returns: 2-tuple.
+    Returns:
     * `time_to_out`: Recommended clock out `datetime`.
     * `time_next_out`: `datetime` of the next `HOURS_RESOLUTION` interval.
 

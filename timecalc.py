@@ -22,6 +22,7 @@ import re
 import requests
 from lxml import html
 import scheduleout
+from typing import Optional
 from excepts import ParseFailure
 
 CONF_PATH = 'config.ini'
@@ -30,9 +31,10 @@ CONF_PATH = 'config.ini'
 WORK_HOURS = timedelta(hours=8)
 HOURS_RESOLUTION = timedelta(minutes=15)
 
+
 def read_config() -> None:
     """Read settings from configuration file to global vars.
-    
+
     Side effects:
     * Reads and writes to file system.
     * Writes to global vars.
@@ -43,14 +45,18 @@ def read_config() -> None:
     config.read(CONF_PATH)
     if 'work_hours' not in config['DEFAULT'] or 'hours_resolution' not in config['DEFAULT']:
         print('Configuration not found. Initializing defaults.')
-        config['DEFAULT']['work_hours'] = str(WORK_HOURS.total_seconds() / 3600)
-        config['DEFAULT']['hours_resolution'] = str(HOURS_RESOLUTION.total_seconds() / 60)
+        config['DEFAULT']['work_hours'] = str(
+            WORK_HOURS.total_seconds() / 3600)
+        config['DEFAULT']['hours_resolution'] = str(
+            HOURS_RESOLUTION.total_seconds() / 60)
         with open(CONF_PATH, 'w') as conf_file:
             config.write(conf_file)
     else:
         WORK_HOURS = timedelta(hours=config.getfloat('DEFAULT', 'work_hours'))
-        HOURS_RESOLUTION = timedelta(minutes=config.getfloat('DEFAULT', 'hours_resolution'))
-    print("You are working {} hours today.".format(WORK_HOURS.total_seconds() / 3600))
+        HOURS_RESOLUTION = timedelta(
+            minutes=config.getfloat('DEFAULT', 'hours_resolution'))
+    print("You are working {} hours today.".format(
+        WORK_HOURS.total_seconds() / 3600))
 
 
 def login_prompt() -> (str, str):
@@ -85,7 +91,8 @@ def login_session(user: str, password: str) -> (requests.Session, requests.Respo
         'USER': user,
         'PASSWORD': password
     }
-    response = session.post('https://workforcenow.adp.com/siteminderagent/forms/login.fcc', form)
+    response = session.post(
+        'https://workforcenow.adp.com/siteminderagent/forms/login.fcc', form)
     return (session, response)
 
 
@@ -213,22 +220,29 @@ def parse_response(response_text: str) -> (list, list, datetime):
         raise ParseFailure('Error accessing time information. Login may be incorrect.',
                            response_text)
     activities_text = div_activities.getchildren()[0].text_content()
-    current_time = re.search(r"""var sDate = ['"]([^'"]+)['"];""", response_text)
+    current_time = re.search(
+        r"""var sDate = ['"]([^'"]+)['"];""", response_text)
     if current_time is None:
         print('Error getting server time. The server application may have changed.')
         raise ParseFailure(
             'Error getting server time. The server application may have changed.',
             response_text)
-    parsed_time = datetime.strptime(current_time.group(1), '%B %d, %Y %H:%M:%S')
+    parsed_time = datetime.strptime(
+        current_time.group(1), '%B %d, %Y %H:%M:%S')
     print('Current server time:', parsed_time.strftime('%I:%M %p'))
-    times_in = re.findall(r'In(\d{2}\/\d{2}\/\d{4} \d{2}:\d{2} (?:AM|PM))', activities_text)
+    times_in = re.findall(
+        r'In(\d{2}\/\d{2}\/\d{4} \d{2}:\d{2} (?:AM|PM))', activities_text)
     if not times_in:
         print('You have not clocked in today.')
-        print('You have {} hours remaining.'.format(WORK_HOURS.total_seconds() / 3600))
+        print('You have {} hours remaining.'.format(
+            WORK_HOURS.total_seconds() / 3600))
         return ([], [])
-    times_out = re.findall(r'Out(\d{2}\/\d{2}\/\d{4} \d{2}:\d{2} (?:AM|PM))', activities_text)
-    parsed_in = [datetime.strptime(strtime, '%m/%d/%Y %I:%M %p') for strtime in times_in]
-    parsed_out = [datetime.strptime(strtime, '%m/%d/%Y %I:%M %p') for strtime in times_out]
+    times_out = re.findall(
+        r'Out(\d{2}\/\d{2}\/\d{4} \d{2}:\d{2} (?:AM|PM))', activities_text)
+    parsed_in = [datetime.strptime(strtime, '%m/%d/%Y %I:%M %p')
+                 for strtime in times_in]
+    parsed_out = [datetime.strptime(strtime, '%m/%d/%Y %I:%M %p')
+                  for strtime in times_out]
     return (parsed_in, parsed_out, parsed_time)
 
 
@@ -251,7 +265,8 @@ def round_datetime(time_date: datetime, time_resolution: timedelta) -> datetime:
 
 
 def print_clocktable(
-        parsed_in: list, parsed_out: list, current_time: datetime) -> (datetime, timedelta):
+        parsed_in: list, parsed_out: list, current_time: datetime
+) -> (Optional[datetime], Optional[timedelta]):
     """Display timesheet for the present day. Also calculates remaining hours and displays
     recommended clock out time.
 
@@ -261,17 +276,19 @@ def print_clocktable(
     * `current_time`: current datetime of the server.
 
     Returns:
-    * `time_to_out`: Recommended clock out `datetime`.
-    * `time_next_out`: `datetime` of the next `HOURS_RESOLUTION` interval.
+    * `time_to_out`: Recommended clock out `datetime`. `None` if not clocked in.
+    * `time_next_out`: `datetime` of the next `HOURS_RESOLUTION` interval. `None` if not
+      clocked in.
 
     Side effects:
     * Prints to standard output.
     * Reads variables `WORK_HOURS` and `HOURS_RESOLUTION`.
     """
     # Utility to stringify a datetime as 'HH:mm AM/PM'
-    tformatter = lambda t: t.strftime('%I:%M %p')
+    def tformatter(t): return t.strftime('%I:%M %p')
     # Utility to convert a timedelta to numeric hours
-    hours_delta = lambda t: round(t.total_seconds() / 3600, 2)
+
+    def hours_delta(t): return round(t.total_seconds() / 3600, 2)
 
     format_str = '{:12} {:12} {:>6}'
     print('')
@@ -296,17 +313,20 @@ def print_clocktable(
     try:
         time_in = next(iter_in)
         # Next soonest clock-out time that will get counted
-        time_next_out = round_datetime(current_time + HOURS_RESOLUTION, HOURS_RESOLUTION)
+        time_next_out = round_datetime(
+            current_time + HOURS_RESOLUTION, HOURS_RESOLUTION)
         time_next_worked = time_next_out - time_in
 
         # Time to clock-out that completes remaining hours for the day
-        time_to_out = round_datetime(time_in + time_remaining, HOURS_RESOLUTION)
-        time_remaining -= (round_datetime(current_time, HOURS_RESOLUTION) - time_in)
+        time_to_out = round_datetime(
+            time_in + time_remaining, HOURS_RESOLUTION)
+        time_remaining -= (round_datetime(current_time,
+                                          HOURS_RESOLUTION) - time_in)
 
         print(format_str.format(
             tformatter(time_in),
-            '('+tformatter(time_next_out)+')',
-            '('+str(hours_delta(time_next_worked))+')'))
+            '(' + tformatter(time_next_out) + ')',
+            '(' + str(hours_delta(time_next_worked)) + ')'))
         print('')
         print('You should clock out at {}.'.format(tformatter(time_to_out)))
         return (time_to_out, time_next_out)
@@ -315,7 +335,8 @@ def print_clocktable(
         print('')
         return (None, None)
     finally:
-        print('You have {} hours remaining.'.format(hours_delta(time_remaining)))
+        print('You have {} hours remaining.'.format(
+            hours_delta(time_remaining)))
 
 
 def main_silent_clockin(username: str, password: str) -> None:
@@ -349,7 +370,8 @@ def main_withlogin(username: str, password: str) -> None:
     while True:
         response = refresh_session(session)
         (times_in, times_out, server_time) = parse_response(response.text)
-        (time_to_out, time_next_out) = print_clocktable(times_in, times_out, server_time)
+        (time_to_out, time_next_out) = print_clocktable(
+            times_in, times_out, server_time)
         print('')
         (cust_id, emp_id) = parse_ids(response.text)
         command = input(
@@ -372,14 +394,16 @@ def main_withlogin(username: str, password: str) -> None:
                 return
             adj_time_out = time_to_out
             scheduleout.schedule(adj_time_out.strftime('%H:%M'))
-            print('Automatic clock-out scheduled for {0:%I:%M %p}.'.format(adj_time_out))
+            print(
+                'Automatic clock-out scheduled for {0:%I:%M %p}.'.format(adj_time_out))
         elif command == 'next':
             if not time_next_out:
                 print('Cannot auto-clockout: you have not clocked in.')
                 return
             adj_time_out = time_next_out + timedelta(minutes=2)
             scheduleout.schedule(adj_time_out.strftime('%H:%M'))
-            print('Automatic clock-out scheduled for {0:%I:%M %p}.'.format(adj_time_out))
+            print(
+                'Automatic clock-out scheduled for {0:%I:%M %p}.'.format(adj_time_out))
         elif command == 'r':
             (session, response) = login_session(username, password)
         else:

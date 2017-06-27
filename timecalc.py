@@ -381,17 +381,17 @@ def main_withlogin(username: str, password: str) -> None:
         if command == 'in':
             if time_to_out:
                 print('Cannot clock in: you are already clocked in.')
-                return
+                continue
             clock_in(session, cust_id, emp_id)
         elif command == 'out':
             if not time_to_out:
                 print('Cannot clock out: you are not clocked in.')
-                return
+                continue
             clock_out(session, cust_id, emp_id)
         elif command == 'auto':
             if not time_to_out:
                 print('Cannot auto-clockout: you have not clocked in.')
-                return
+                continue
             adj_time_out = time_to_out
             scheduleout.schedule(adj_time_out.strftime('%H:%M'))
             print(
@@ -399,7 +399,7 @@ def main_withlogin(username: str, password: str) -> None:
         elif command == 'next':
             if not time_next_out:
                 print('Cannot auto-clockout: you have not clocked in.')
-                return
+                continue
             adj_time_out = time_next_out
             scheduleout.schedule(adj_time_out.strftime('%H:%M'))
             print(

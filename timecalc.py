@@ -236,7 +236,7 @@ def parse_response(response_text: str) -> (list, list, datetime):
         print('You have not clocked in today.')
         print('You have {} hours remaining.'.format(
             WORK_HOURS.total_seconds() / 3600))
-        return ([], [])
+        return ([], [], parsed_time)
     times_out = re.findall(
         r'Out(\d{2}\/\d{2}\/\d{4} \d{2}:\d{2} (?:AM|PM))', activities_text)
     parsed_in = [datetime.strptime(strtime, '%m/%d/%Y %I:%M %p')
@@ -400,7 +400,7 @@ def main_withlogin(username: str, password: str) -> None:
             if not time_next_out:
                 print('Cannot auto-clockout: you have not clocked in.')
                 return
-            adj_time_out = time_next_out + timedelta(minutes=2)
+            adj_time_out = time_next_out
             scheduleout.schedule(adj_time_out.strftime('%H:%M'))
             print(
                 'Automatic clock-out scheduled for {0:%I:%M %p}.'.format(adj_time_out))

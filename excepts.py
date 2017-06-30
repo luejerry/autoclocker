@@ -12,3 +12,6 @@ class ParseFailure(Exception):
     def log(self):
         """Get the raw text that failed to parse."""
         return super().args[2]
+
+class SessionExpired(Exception):
+    """Thrown if server expired the current login session."""

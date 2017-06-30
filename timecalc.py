@@ -19,11 +19,11 @@ from datetime import datetime, timedelta
 import configparser
 import getpass
 import re
+from typing import Optional
 import requests
 from lxml import html
 import scheduleout
-from typing import Optional
-from excepts import ParseFailure
+from excepts import ParseFailure, SessionExpired
 
 CONF_PATH = 'config.ini'
 
@@ -204,7 +204,9 @@ def parse_response(response_text: str) -> (list, list, datetime):
     * `parsed_out`: List of clock-out `datetime` objects.
     * `parsed_time`: Current `datetime` from server.
 
-    Throws: `ParseFailure` if timesheet data could not be parsed from text.
+    Throws:
+    * `SessionExpired` if response text indicates that server terminated the authenticated session.
+    * `ParseFailure` if timesheet data could not be parsed from text.
 
     Side effects: Prints to standard output.
     """
@@ -215,7 +217,11 @@ def parse_response(response_text: str) -> (list, list, datetime):
     # Scrape the page for timesheet information
     htmltree = html.fromstring(response_text)
     div_activities = htmltree.get_element_by_id('divActivities', None)
-    if div_activities is None:
+    if not div_activities:
+        div_login = htmltree.get_element_by_id('mainLoginWrapper', None)
+        if div_login:
+            print('Login session expired.')
+            raise SessionExpired('Login session expired.')
         print('Error accessing time information. Login may be incorrect.')
         raise ParseFailure('Error accessing time information. Login may be incorrect.',
                            response_text)
@@ -369,7 +375,12 @@ def main_withlogin(username: str, password: str) -> None:
     (session, response) = login_session(username, password)
     while True:
         response = refresh_session(session)
-        (times_in, times_out, server_time) = parse_response(response.text)
+        try:
+            (times_in, times_out, server_time) = parse_response(response.text)
+        except SessionExpired:
+            print('Session expired, reauthenticating...')
+            (session, response) = login_session(username, password)
+            (times_in, times_out, server_time) = parse_response(response.text)
         (time_to_out, time_next_out) = print_clocktable(
             times_in, times_out, server_time)
         print('')

@@ -85,7 +85,7 @@ def login_session(user: str, password: str) -> (requests.Session, requests.Respo
     Side effects: None.
     """
     session = requests.Session()
-    url = 'https://workforcenow.adp.com/ezLaborManagerNet/UI4/WFN/Portlet/MyTime.aspx?dojo.preventCache=1496267721438'
+    url = 'https://workforcenow.adp.com/ezLaborManagerNet/UI4/WFN/Portlet/MyTime.aspx'
     form = {
         'target': url,
         'USER': user,
@@ -106,7 +106,7 @@ def refresh_session(session: requests.Session) -> requests.Response:
 
     Side effects: None.
     """
-    url = 'https://workforcenow.adp.com/ezLaborManagerNet/UI4/WFN/Portlet/MyTime.aspx?dojo.preventCache=1496267721438'
+    url = 'https://workforcenow.adp.com/ezLaborManagerNet/UI4/WFN/Portlet/MyTime.aspx'
     response = session.get(url)
     return response
 
@@ -143,7 +143,9 @@ def clock_inout(session: requests.Session, cust_id: str, emp_id: str, is_in: boo
 
     Side effects: Prints to standard output.
     """
-    url = 'https://workforcenow.adp.com/ezLaborManagerNet/UI4/Common/TLMRevitServices.asmx/ProcessClockFunctionAndReturnMsg'
+    url = (
+        'https://workforcenow.adp.com/ezLaborManagerNet/UI4/Common/TLMRevitServices.asmx'
+        '/ProcessClockFunctionAndReturnMsg')
     payload = {
         'iCustID': cust_id,
         'sEmployeeID': emp_id,
@@ -293,7 +295,6 @@ def print_clocktable(
     # Utility to stringify a datetime as 'HH:mm AM/PM'
     def tformatter(t): return t.strftime('%I:%M %p')
     # Utility to convert a timedelta to numeric hours
-
     def hours_delta(t): return round(t.total_seconds() / 3600, 2)
 
     format_str = '{:12} {:12} {:>6}'

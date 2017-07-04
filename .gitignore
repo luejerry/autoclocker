@@ -4,3 +4,4 @@ config.ini
 .DS_Store
 desktop.ini
 *.zip
+~*

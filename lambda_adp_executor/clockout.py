@@ -19,21 +19,25 @@ import json
 import configparser
 import requests
 from enum import Enum
+import boto3
 
 
-CONF_PATH = 'config.ini'
+CRED_READER = 'adpLoadCreds'
+lambda_client = boto3.client('lambda')
 
 class Login(Enum):
     SUCCESS = 0
     FAIL = 1
 
 
-def read_config() -> (str, str):
-    config = configparser.ConfigParser()
-    config.read(CONF_PATH)
-    user = config['DEFAULT']['user']
-    key = config['DEFAULT']['key']
-    return (user, key)
+def respond(err, res=None) -> dict:
+    return {
+        'statusCode': '400' if err else '200',
+        'body': err.message if err else json.dumps(res),
+        'headers': {
+            'Content-Type': 'application/json'
+        }
+    }
 
 
 def login_session(user: str, password: str) -> (requests.Session, requests.Response):
@@ -135,25 +139,21 @@ def main_silent_clockout(username: str, password: str) -> Login:
 
 
 def lambda_handler(event, context):
-    (user, key) = read_config()
+    retrieve_request = {
+        'FunctionName': CRED_READER,
+        'Payload': json.dumps(event)
+    }
+    retrieve_response = lambda_client.invoke(**retrieve_request)
+    try:
+        response_full = json.loads(retrieve_response['Payload'].read())
+        body = json.loads(response_full['body'])
+        user = body['UserId']
+        key = body['Password']
+    except KeyError as ex:
+        return respond(ex)
     action_result = main_silent_clockout(user, key)
     if action_result == Login.SUCCESS:
-        response = {
-            'isBase64Encoded': False,
-            'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json'
-            },
-            'body': json.dumps({'result': 'success'})
-        }
-        return response
+        response = json.dumps({'result': 'success'})
     else:
-        response = {
-            'isBase64Encoded': False,
-            'statusCode': 500,
-            'headers': {
-                'Content-Type': 'application/json'
-            },
-            'body': json.dumps({'result': 'fail'})
-        }
-        return response
+        response = json.dumps({'result': 'fail'})
+    return respond(None, response)

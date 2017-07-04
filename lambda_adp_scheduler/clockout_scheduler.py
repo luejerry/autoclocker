@@ -4,7 +4,6 @@ import boto3
 
 RULE_ARN = 'arn:aws:events:us-west-2:416241143428:rule/scheduleClockOut'
 RULE_NAME = 'scheduleClockOut'
-# todo: testing target
 TARGET_ARN = 'arn:aws:lambda:us-west-2:416241143428:function:adpSaveCreds'
 TARGET_NAME = 'adpSaveCreds'
 
@@ -47,14 +46,14 @@ def schedule_event(time: datetime):
     cloudwatch.put_rule(**rule)
 
 
-def set_target(input: dict) -> bool:
+def set_target(target_input: dict) -> bool:
     target = {
         'Rule': RULE_NAME,
         'Targets': [
             {
                 'Id': '1',
                 'Arn': TARGET_ARN,
-                'Input': json.dumps(input)
+                'Input': json.dumps(target_input)
             }
         ]
     }
@@ -104,10 +103,10 @@ def lambda_handler(event, context):
     schedule_event(time)
     target_input = {
         "UserId": userid,
-        "Password": aes_key # todo: change to "Key" when finished testing!
+        "Key": aes_key # todo: change to "Key" when finished testing!
     }
     event['body'] = json.dumps(target_input)
     target_result = set_target(event)
     if not target_result:
         return respond(Exception('Failed to add event target'))
-    return respond(None, {"Result": "Success"})
+    return respond(None, {"result": "success"})

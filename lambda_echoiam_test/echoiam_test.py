@@ -9,24 +9,24 @@ CONF_PATH = 'awsconfig.ini'
 def read_config() -> dict:
     config = configparser.ConfigParser()
     config.read(CONF_PATH)
-    CONFIG = {}
-    CONFIG['key'] = config['DEFAULT']['aws_access_key']
-    CONFIG['secret'] = config['DEFAULT']['aws_secret_key']
-    CONFIG['region'] = config['DEFAULT']['aws_region']
-    CONFIG['host'] = config['DEFAULT']['aws_host']
-    return CONFIG
+    conf = {}
+    conf['key'] = config['DEFAULT']['aws_access_key']
+    conf['secret'] = config['DEFAULT']['aws_secret_key']
+    conf['region'] = config['DEFAULT']['aws_region']
+    conf['host'] = config['ECHOTEST']['aws_host']
+    return conf
 
-def echo_test(msg: str, CONFIG: dict):
+def echo_test(msg: str, conf: dict):
     auth_headers = AWSRequestsAuth(
-        aws_access_key=CONFIG['key'],
-        aws_secret_access_key=CONFIG['secret'],
-        aws_region=CONFIG['region'],
+        aws_access_key=conf['key'],
+        aws_secret_access_key=conf['secret'],
+        aws_region=conf['region'],
         aws_service='execute-api',
-        aws_host=CONFIG['host'])
+        aws_host=conf['host'])
     payload = {
         'message': msg
     }
-    response = requests.post('https://' + CONFIG['host'] + URL, json=payload, auth=auth_headers)
+    response = requests.post('https://' + conf['host'] + URL, json=payload, auth=auth_headers)
     content = json.loads(response.content)
     return content
 

@@ -18,29 +18,30 @@ def read_config() -> dict:
     conf['savecreds'] = config['ADP']['savecreds_endpoint']
     return conf
 
-def schedule(user: str, key: str, out_time: datetime.datetime, awsconf: dict):
+def schedule(user: str, key: str, out_time: datetime.timedelta, awsconf: dict):
     url = 'https://' + awsconf['host'] + awsconf['scheduler']
     auth_headers = AWSRequestsAuth(
         awsconf['key'], awsconf['secret'], awsconf['host'], awsconf['region'], 'execute-api')
     content = {
         'UserId': user,
         'Key': key,
-        'ScheduleTime': out_time.isoformat(timespec='seconds')
+        'ScheduleTime': out_time.total_seconds() // 60
     }
     response = requests.post(url, json=content, auth=auth_headers)
     response.raise_for_status()
     response_body = json.loads(response.content, encoding='utf-8')
     return response_body
 
-def execute_scheduler(user: str, key: str, out_time: datetime.datetime):
+def execute_scheduler(user: str, key: str, out_time: datetime.timedelta):
     """Schedule an automatic clockout with the autoclocker service.
 
     Parameters:
     * `user`: ADP username.
     * `key`: AES key for saved password.
-    * `out_time`: time to clock out, in UTC.
+    * `out_time`: minutes in future to clock out.
 
     Throws: `requests.HTTPException` if error occurred communicating with API gateway.
     """
     conf = read_config()
-    schedule(user, key, out_time, conf)
+    result = schedule(user, key, out_time, conf)
+    print(result['ScheduleTime'])

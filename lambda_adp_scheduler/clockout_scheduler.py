@@ -75,7 +75,7 @@ def lambda_handler(event, context):
 
     ```json
     {
-        "ScheduleTime": UTC time in ISO8601 format,
+        "ScheduleTime": minutes from now,
         "UserId": ADP username,
         "Key": AES key
     }
@@ -85,28 +85,30 @@ def lambda_handler(event, context):
 
     ```json
     {
-        "Result": "Success"
+        "ScheduleTime": scheduled clockout time as ISO 8601 UTC string
     }
     ```
     """
     try:
         body = json.loads(event['body'])
-        timestr = body['ScheduleTime']
+        minutes = body['ScheduleTime']
         userid = body['UserId']
         aes_key = body['Key']
     except KeyError as ex:
         return respond(ex)
-    try:
-        time = datetime.strptime(timestr, '%Y-%m-%dT%H:%M:%S')
-    except ValueError as ex:
-        return respond(ex)
-    schedule_event(time)
+    duration = timedelta(minutes=minutes)
+    schedule_time = datetime.utcnow() + duration
+    # try:
+    #     time = datetime.strptime(timestr, '%Y-%m-%dT%H:%M:%S')
+    # except ValueError as ex:
+    #     return respond(ex)
+    schedule_event(schedule_time)
     target_input = {
         "UserId": userid,
-        "Key": aes_key # todo: change to "Key" when finished testing!
+        "Key": aes_key
     }
     event['body'] = json.dumps(target_input)
     target_result = set_target(event)
     if not target_result:
         return respond(Exception('Failed to add event target'))
-    return respond(None, {"result": "success"})
+    return respond(None, {"ScheduleTime": schedule_time.isoformat(timespec='seconds')})

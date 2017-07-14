@@ -32,7 +32,7 @@ def schedule(user: str, key: str, out_time: datetime.timedelta, awsconf: dict):
     response_body = json.loads(response.content, encoding='utf-8')
     return response_body
 
-def execute_scheduler(user: str, key: str, out_time: datetime.timedelta):
+def execute_scheduler(user: str, key: str, out_time: datetime.timedelta) -> None:
     """Schedule an automatic clockout with the autoclocker service.
 
     Parameters:
@@ -45,3 +45,17 @@ def execute_scheduler(user: str, key: str, out_time: datetime.timedelta):
     conf = read_config()
     result = schedule(user, key, out_time, conf)
     print(result['ScheduleTime'])
+
+def execute_saved_scheduler(user: str, out_time: datetime.timedelta) -> None:
+    """Schedule an automatic clockout with the autoclocker service, using the key stored in configuration file.
+
+    Parameters:
+    * `user`: ADP username.
+    * `out_time`: minutes in future to clock out.
+    
+    Throws: `requests.HTTPException` if error occurred communicating with API gateway.
+    """
+    config = configparser.ConfigParser()
+    config.read(CONF_PATH)
+    key = config[user]['key']
+    execute_scheduler(user, key, out_time)

@@ -4,8 +4,9 @@ import pyaes
 import base64
 
 dynamo = boto3.client('dynamodb')
+kms = boto3.client('kms')
 TABLE_NAME = 'AdpCreds'
-
+KMS_KEY = 'alias/adp_credential_wrapper'
 
 def respond(err, res=None) -> dict:
     return {
@@ -28,6 +29,14 @@ def decrypt_aes(ciphertext: bytes, key: bytes) -> str:
     return decrypted.decode('utf-8')
 
 
+def decrypt_kms(ciphertext: bytes) -> bytes:
+    kms_request = {
+        'CiphertextBlob': ciphertext
+    }
+    kms_response = kms.decrypt(**kms_request)
+    return kms_response['Plaintext']
+
+
 def query_ciphertext(userid) -> bytes:
     query = {
         'TableName': TABLE_NAME,
@@ -44,12 +53,13 @@ def query_ciphertext(userid) -> bytes:
 
 
 def lambda_handler(event, context):
-    """Retrieves a record in the AdpCreds table and decrypts it with the client-supplied key. The request body must be in the format:
+    """Retrieves a record in the AdpCreds table and decrypts it with the client-supplied key. The
+    request body must be in the format:
 
     ```json
     {
         "UserId": ADP username,
-        "Key": AES key
+        "Key": encrypted KMS data key
     }
     ```
 
@@ -75,7 +85,8 @@ def lambda_handler(event, context):
     except KeyError as ex:
         return respond(ex)
 
-    decrypted = decrypt_aes(ciphertext, key_decoded)
+    unwrapped_key = decrypt_kms(key_decoded)
+    decrypted = decrypt_aes(ciphertext, unwrapped_key)
     response_body = {
         'UserId': userid,
         'Password': decrypted

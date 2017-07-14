@@ -219,7 +219,7 @@ def parse_response(response_text: str) -> (list, list, datetime):
     # Scrape the page for timesheet information
     htmltree = html.fromstring(response_text)
     div_activities = htmltree.get_element_by_id('divActivities', None)
-    if not div_activities:
+    if len(div_activities) == 0:
         div_login = htmltree.get_element_by_id('mainLoginWrapper', None)
         if div_login:
             print('Login session expired.')
@@ -293,9 +293,9 @@ def print_clocktable(
     * Reads variables `WORK_HOURS` and `HOURS_RESOLUTION`.
     """
     # Utility to stringify a datetime as 'HH:mm AM/PM'
-    def tformatter(t): return t.strftime('%I:%M %p')
+    tformatter = lambda t: t.strftime('%I:%M %p')
     # Utility to convert a timedelta to numeric hours
-    def hours_delta(t): return round(t.total_seconds() / 3600, 2)
+    hours_delta = lambda t: round(t.total_seconds() / 3600, 2)
 
     format_str = '{:12} {:12} {:>6}'
     print('')

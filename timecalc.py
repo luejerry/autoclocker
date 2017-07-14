@@ -19,7 +19,8 @@ from datetime import datetime, timedelta
 import configparser
 import getpass
 import re
-from typing import Optional
+from itertools import zip_longest
+from typing import Optional, Sequence, Mapping, Dict, List, Tuple, Union
 import requests
 from lxml import html
 import scheduleout
@@ -59,7 +60,7 @@ def read_config() -> None:
         WORK_HOURS.total_seconds() / 3600))
 
 
-def login_prompt() -> (str, str):
+def login_prompt() -> Tuple[str, str]:
     """Prompt user for login credentials.
 
     Returns:
@@ -71,7 +72,7 @@ def login_prompt() -> (str, str):
     return (user, password)
 
 
-def login_session(user: str, password: str) -> (requests.Session, requests.Response):
+def login_session(user: str, password: str) -> Tuple[requests.Session, requests.Response]:
     """Initiate an authenticated session with the supplied credentials. A failed login due to
     invalid credentials will not fail at this stage and must be checked by examining the contents
     of the returned session and response objects.
@@ -111,7 +112,7 @@ def refresh_session(session: requests.Session) -> requests.Response:
     return response
 
 
-def parse_ids(response_text: str) -> (str, str):
+def parse_ids(response_text: str) -> Tuple[str, str]:
     """Scrapes customer (employer) and employee IDs from the web application page. These are used
     to send clock-in/out requests.
 
@@ -194,7 +195,7 @@ def clock_out(session: requests.Session, cust_id: str, emp_id: str) -> None:
     return
 
 
-def parse_response(response_text: str) -> (list, list, datetime):
+def parse_response(response_text: str) -> Tuple[List[datetime], List[datetime], datetime]:
     """Parse the clock in/clock out data from ADP page and calculate remaining hours and time to
     clock out.
 
@@ -272,78 +273,83 @@ def round_datetime(time_date: datetime, time_resolution: timedelta) -> datetime:
     return datetime_adj
 
 
-def print_clocktable(
-        parsed_in: list, parsed_out: list, current_time: datetime
-) -> (Optional[datetime], Optional[timedelta]):
-    """Display timesheet for the present day. Also calculates remaining hours and displays
-    recommended clock out time.
+def calculate_time_table(
+        parsed_in: Sequence[datetime],
+        parsed_out: Sequence[datetime],
+        current_time: datetime
+) -> Dict[str, List[Union[datetime, timedelta]]]:
+    rounded_in = [round_datetime(dt, HOURS_RESOLUTION) for dt in parsed_in]
+    rounded_out = [round_datetime(dt, HOURS_RESOLUTION) for dt in parsed_out]
 
-    Parameters:
-    * `parsed_in` : list of datetime objects corresponding to clock-in times.
-    * `parsed_out`: list of datetime objects corresponding to clock-out times.
-    * `current_time`: current datetime of the server.
+    def time_or_next(t): return t or round_datetime(
+        current_time + HOURS_RESOLUTION, HOURS_RESOLUTION)
 
-    Returns:
-    * `time_to_out`: Recommended clock out `datetime`. `None` if not clocked in.
-    * `time_next_out`: `datetime` of the next `HOURS_RESOLUTION` interval. `None` if not
-      clocked in.
+    times_table = [
+        list(col) for col in zip(*[
+            (time_in, time_or_next(time_out), time_or_next(time_out) - time_in)
+            for (time_in, time_out) in zip_longest(rounded_in, rounded_out)
+        ])
+    ]
+    table_headers = ['in', 'out', 'duration']
+    times_dict = dict(zip(table_headers, times_table))
+    return times_dict
 
-    Side effects:
-    * Prints to standard output.
-    * Reads variables `WORK_HOURS` and `HOURS_RESOLUTION`.
-    """
-    # Utility to stringify a datetime as 'HH:mm AM/PM'
-    tformatter = lambda t: t.strftime('%I:%M %p')
-    # Utility to convert a timedelta to numeric hours
-    hours_delta = lambda t: round(t.total_seconds() / 3600, 2)
 
+def hours_delta(t: timedelta) -> int:
+    return round(t.total_seconds() / 3600, 2)
+
+
+def tformatter(t: datetime) -> str:
+    return t.strftime('%I:%M %p')
+
+
+def display_clocktable(
+        times_dict: Mapping[str, Sequence[Union[datetime, timedelta]]],
+        current_time: datetime
+) -> None:
     format_str = '{:12} {:12} {:>6}'
     print('')
     print(format_str.format('Clocked in', 'Clocked out', 'Hours'))
-    time_worked = timedelta()
 
-    rounded_in = [round_datetime(dt, HOURS_RESOLUTION) for dt in parsed_in]
-    rounded_out = [round_datetime(dt, HOURS_RESOLUTION) for dt in parsed_out]
-    iter_in = iter(rounded_in)
-
-    # Print the timesheet
-    for time_out in rounded_out:
-        # Assume that len(time_in) is always len(time_out) or len(time_out) + 1
-        time_in = next(iter_in)
-        time_worked += time_out - time_in
+    for (time_in, time_out, duration) in zip(*times_dict.values()):
+        future_fmtstr = '{}' if time_out < current_time else '({})'
         print(format_str.format(
-            tformatter(time_in), tformatter(time_out),
-            round(time_worked.total_seconds() / 3600, 2)))
-    time_remaining = WORK_HOURS - time_worked
+            tformatter(time_in), future_fmtstr.format(tformatter(
+                time_out)), future_fmtstr.format(hours_delta(duration))
+        ))
+    print(format_str.format('', '', hours_delta(
+        sum(times_dict['duration'], timedelta()))))
 
-    # If currently clocked in, calculate clock out time
-    try:
-        time_in = next(iter_in)
-        # Next soonest clock-out time that will get counted
-        time_next_out = round_datetime(
-            current_time + HOURS_RESOLUTION, HOURS_RESOLUTION)
-        time_next_worked = time_next_out - time_in
 
-        # Time to clock-out that completes remaining hours for the day
-        time_to_out = round_datetime(
-            time_in + time_remaining, HOURS_RESOLUTION)
-        time_remaining -= (round_datetime(current_time,
-                                          HOURS_RESOLUTION) - time_in)
+def calculate_summary(
+        times_dict: Mapping[str, Sequence[Union[datetime, timedelta]]],
+        current_time: datetime
+) -> Tuple[bool, timedelta, Optional[datetime]]:
+    time_remaining = WORK_HOURS - sum(times_dict['duration'], timedelta())
+    is_in = times_dict['out'][-1] > current_time
 
-        print(format_str.format(
-            tformatter(time_in),
-            '(' + tformatter(time_next_out) + ')',
-            '(' + str(hours_delta(time_next_worked)) + ')'))
-        print('')
-        print('You should clock out at {}.'.format(tformatter(time_to_out)))
-        return (time_to_out, time_next_out)
-    # If not currently clocked in, done
-    except StopIteration:
-        print('')
-        return (None, None)
-    finally:
-        print('You have {} hours remaining.'.format(
-            hours_delta(time_remaining)))
+    def lazy_time_to_out(): return times_dict['out'][-1] + time_remaining
+
+    return (is_in, time_remaining, lazy_time_to_out() if is_in else None)
+
+
+def display_summary(time_remaining: timedelta, time_to_out: datetime) -> None:
+    print(
+        'You have {} hours remaining.'.format(hours_delta(time_remaining)),
+        'You should clock out at {}.'.format(
+            tformatter(time_to_out) if time_to_out else '')
+    )
+
+
+def print_clocktable(
+        times_in: List[datetime],
+        times_out: List[datetime],
+        current_time: datetime
+) -> None:
+    times_dict = calculate_time_table(times_in, times_out, current_time)
+    (_, time_remaining, time_to_out) = calculate_summary(times_dict, current_time)
+    display_clocktable(times_dict, current_time)
+    display_summary(time_remaining, time_to_out)
 
 
 def main_silent_clockin(username: str, password: str) -> None:
@@ -382,44 +388,51 @@ def main_withlogin(username: str, password: str) -> None:
             print('Session expired, reauthenticating...')
             (session, response) = login_session(username, password)
             (times_in, times_out, server_time) = parse_response(response.text)
-        (time_to_out, time_next_out) = print_clocktable(
-            times_in, times_out, server_time)
+        times_dict = calculate_time_table(times_in, times_out, server_time)
+        display_clocktable(times_dict, server_time)
         print('')
+        (is_in, time_remaining, time_to_out) = calculate_summary(
+            times_dict, server_time)
         (cust_id, emp_id) = parse_ids(response.text)
         command = input(
             'Type "in" to clock in, "out" to clock out, "auto" to auto-clockout,'
             ' "next" to auto-clockout at the next interval, "r" to refresh,'
             ' or anything else to exit: ')
-        if command == 'in':
-            if time_to_out:
-                print('Cannot clock in: you are already clocked in.')
-                continue
-            clock_in(session, cust_id, emp_id)
-        elif command == 'out':
-            if not time_to_out:
-                print('Cannot clock out: you are not clocked in.')
-                continue
-            clock_out(session, cust_id, emp_id)
-        elif command == 'auto':
-            if not time_to_out:
-                print('Cannot auto-clockout: you have not clocked in.')
-                continue
-            adj_time_out = time_to_out
-            scheduleout.schedule(adj_time_out.strftime('%H:%M'))
-            print(
-                'Automatic clock-out scheduled for {0:%I:%M %p}.'.format(adj_time_out))
-        elif command == 'next':
-            if not time_next_out:
-                print('Cannot auto-clockout: you have not clocked in.')
-                continue
-            adj_time_out = time_next_out
-            scheduleout.schedule(adj_time_out.strftime('%H:%M'))
-            print(
-                'Automatic clock-out scheduled for {0:%I:%M %p}.'.format(adj_time_out))
-        elif command == 'r':
+        command_map = {
+            'in': lambda: handle_in(session, cust_id, emp_id, is_in),
+            'out': lambda: handle_out(session, cust_id, emp_id, is_in),
+            'auto': lambda: handle_auto(time_to_out, server_time, is_in),
+            'next': lambda: handle_auto(times_dict['out'][-1], server_time, is_in),
+        }
+        if command == 'r':
             (session, response) = login_session(username, password)
-        else:
+            continue
+        elif command not in command_map.keys():
             return
+        command_map[command]()
+
+
+def handle_in(session, cust_id, emp_id, is_in):
+    if is_in:
+        print('Cannot clock in: you are already clocked in.')
+        return
+    clock_in(session, cust_id, emp_id)
+
+
+def handle_out(session, cust_id, emp_id, is_in):
+    if not is_in:
+        print('Cannot clock out: you are not clocked in.')
+        return
+    clock_out(session, cust_id, emp_id)
+
+
+def handle_auto(time_to_out: datetime, current_time: datetime, is_in: bool):
+    if not is_in:
+        print('Cannot auto-clockout: you have not clocked in.')
+        return
+    exact_remaining = time_to_out - current_time
+    minutes_remaining = exact_remaining.total_seconds() // 60
+    print('Placeholder: {} minutes remaining'.format(minutes_remaining))
 
 
 def main() -> None:

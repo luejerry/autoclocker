@@ -25,6 +25,7 @@ import requests
 from lxml import html
 import scheduleout
 from excepts import ParseFailure, SessionExpired
+import aws_adp_client.scheduler_client as aws_scheduler
 
 CONF_PATH = 'config.ini'
 
@@ -34,7 +35,7 @@ HOURS_RESOLUTION = timedelta(minutes=15)
 
 
 def read_config() -> None:
-    """Read settings from configuration file to global vars.
+    """Load settings from configuration file to global vars.
 
     Side effects:
     * Reads and writes to file system.
@@ -243,8 +244,6 @@ def parse_response(response_text: str) -> Tuple[List[datetime], List[datetime], 
         r'In(\d{2}\/\d{2}\/\d{4} \d{2}:\d{2} (?:AM|PM))', activities_text)
     if not times_in:
         print('You have not clocked in today.')
-        print('You have {} hours remaining.'.format(
-            WORK_HOURS.total_seconds() / 3600))
         return ([], [], parsed_time)
     times_out = re.findall(
         r'Out(\d{2}\/\d{2}\/\d{4} \d{2}:\d{2} (?:AM|PM))', activities_text)
@@ -307,6 +306,8 @@ def display_clocktable(
         times_dict: Mapping[str, Sequence[Union[datetime, timedelta]]],
         current_time: datetime
 ) -> None:
+    if not times_dict:
+        return
     format_str = '{:12} {:12} {:>6}'
     print('')
     print(format_str.format('Clocked in', 'Clocked out', 'Hours'))
@@ -325,6 +326,8 @@ def calculate_summary(
         times_dict: Mapping[str, Sequence[Union[datetime, timedelta]]],
         current_time: datetime
 ) -> Tuple[bool, timedelta, Optional[datetime]]:
+    if not times_dict:
+        return (False, WORK_HOURS, None)
     time_remaining = WORK_HOURS - sum(times_dict['duration'], timedelta())
     is_in = times_dict['out'][-1] > current_time
 
@@ -337,7 +340,7 @@ def display_summary(time_remaining: timedelta, time_to_out: datetime) -> None:
     print(
         'You have {} hours remaining.'.format(hours_delta(time_remaining)),
         'You should clock out at {}.'.format(
-            tformatter(time_to_out) if time_to_out else '')
+            tformatter(time_to_out)) if time_to_out else ''
     )
 
 
@@ -393,6 +396,8 @@ def main_withlogin(username: str, password: str) -> None:
         print('')
         (is_in, time_remaining, time_to_out) = calculate_summary(
             times_dict, server_time)
+        display_summary(time_remaining, time_to_out)
+        time_next_out = times_dict['out'][-1] if times_dict else None
         (cust_id, emp_id) = parse_ids(response.text)
         command = input(
             'Type "in" to clock in, "out" to clock out, "auto" to auto-clockout,'
@@ -401,8 +406,8 @@ def main_withlogin(username: str, password: str) -> None:
         command_map = {
             'in': lambda: handle_in(session, cust_id, emp_id, is_in),
             'out': lambda: handle_out(session, cust_id, emp_id, is_in),
-            'auto': lambda: handle_auto(time_to_out, server_time, is_in),
-            'next': lambda: handle_auto(times_dict['out'][-1], server_time, is_in),
+            'auto': lambda: handle_auto(time_to_out, server_time, username, is_in),
+            'next': lambda: handle_auto(time_next_out, server_time, username, is_in),
         }
         if command == 'r':
             (session, response) = login_session(username, password)
@@ -426,13 +431,12 @@ def handle_out(session, cust_id, emp_id, is_in):
     clock_out(session, cust_id, emp_id)
 
 
-def handle_auto(time_to_out: datetime, current_time: datetime, is_in: bool):
+def handle_auto(time_to_out: datetime, current_time: datetime, user: str, is_in: bool):
     if not is_in:
         print('Cannot auto-clockout: you have not clocked in.')
         return
     exact_remaining = time_to_out - current_time
-    minutes_remaining = exact_remaining.total_seconds() // 60
-    print('Placeholder: {} minutes remaining'.format(minutes_remaining))
+    aws_scheduler.execute_saved_scheduler(user, exact_remaining)
 
 
 def main() -> None:

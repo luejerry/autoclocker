@@ -1,3 +1,16 @@
+"""Allows scheduled clockout using ADP autoclocker service on AWS.
+
+**Example usage**:
+
+This requires that the `awsconfig.ini` file has the wrapped data key for the user saved from a
+prior use of `savecreds_client`.
+
+```python
+import aws_adp_client.scheduler_client as aws_scheduler
+from datetime import timedelta
+execute_saved_scheduler('user@example.com', timedelta(hours=3 minutes=30))
+```
+"""
 import configparser
 import json
 import datetime

@@ -277,6 +277,23 @@ def calculate_time_table(
         parsed_out: Sequence[datetime],
         current_time: datetime
 ) -> Dict[str, List[Union[datetime, timedelta]]]:
+    """Generate timesheet table data given list of clockin and clockout times.
+
+    Parameters:
+    * `parsed_in`: List of clock-in times.
+    * `parsed_out`: List of clock-out times.
+    * `current_time`: Current time, in same timezone as clock-in/out times.
+    
+    Returns: timesheet data in the following format
+
+        ```python
+        {
+            'in': [clockin datetimes],
+            'out': [clockout datetimes],
+            'duration': [clockout - clockin times]
+        }
+        ```
+    """
     rounded_in = [round_datetime(dt, HOURS_RESOLUTION) for dt in parsed_in]
     rounded_out = [round_datetime(dt, HOURS_RESOLUTION) for dt in parsed_out]
 
@@ -294,11 +311,13 @@ def calculate_time_table(
     return times_dict
 
 
-def hours_delta(t: timedelta) -> int:
+def hours_delta(t: timedelta) -> float:
+    """Converts a `timedelta` to decimal hours."""
     return round(t.total_seconds() / 3600, 2)
 
 
 def tformatter(t: datetime) -> str:
+    """Format a `datetime` as "08:05 PM"."""
     return t.strftime('%I:%M %p')
 
 
@@ -306,6 +325,7 @@ def display_clocktable(
         times_dict: Mapping[str, Sequence[Union[datetime, timedelta]]],
         current_time: datetime
 ) -> None:
+    """Formats and prints timesheet data as a text table."""
     if not times_dict:
         return
     format_str = '{:12} {:12} {:>6}'
@@ -326,6 +346,27 @@ def calculate_summary(
         times_dict: Mapping[str, Sequence[Union[datetime, timedelta]]],
         current_time: datetime
 ) -> Tuple[bool, timedelta, Optional[datetime]]:
+    """Generates summary information from the supplied timesheet data.
+
+    Parameters:
+    * `times_dict`: timesheet data in the following format
+
+        ```python
+        {
+            'in': [clockin datetimes],
+            'out': [clockout datetimes],
+            'duration': [clockout - clockin times]
+        }
+        ```
+
+    * `current_time`: current time, in the same timezone as the timesheet data.
+
+    Returns:
+    * `is_in`: `True` if currently clocked in.
+    * `time_remaining`: remaining time to work today, starting from the next clock interval.
+    * `time_to_out`: time to clock out to complete remaining hours, or `None` if not currently
+      clocked in.
+    """
     if not times_dict:
         return (False, WORK_HOURS, None)
     time_remaining = WORK_HOURS - sum(times_dict['duration'], timedelta())
@@ -337,6 +378,7 @@ def calculate_summary(
 
 
 def display_summary(time_remaining: timedelta, time_to_out: datetime) -> None:
+    """Formats and prints supplied timesheet summary information."""
     print(
         'You have {} hours remaining.'.format(hours_delta(time_remaining)),
         'You should clock out at {}.'.format(
@@ -349,6 +391,7 @@ def print_clocktable(
         times_out: List[datetime],
         current_time: datetime
 ) -> None:
+    """Convenience method to display timesheet table and summary information."""
     times_dict = calculate_time_table(times_in, times_out, current_time)
     (_, time_remaining, time_to_out) = calculate_summary(times_dict, current_time)
     display_clocktable(times_dict, current_time)
@@ -436,7 +479,10 @@ def handle_auto(time_to_out: datetime, current_time: datetime, user: str, is_in:
         print('Cannot auto-clockout: you have not clocked in.')
         return
     exact_remaining = time_to_out - current_time
-    aws_scheduler.execute_saved_scheduler(user, exact_remaining)
+    scheduled_time = aws_scheduler.execute_saved_scheduler(
+        user, exact_remaining)
+    print('AWS auto-clockout scheduled for {}.'.format(
+        tformatter(scheduled_time.astimezone(tz=None))))
 
 
 def main() -> None:

@@ -1,5 +1,8 @@
 """Allows scheduled clockout using ADP autoclocker service on AWS.
 
+The `awsconfig.ini` file must contain a set of AWS IAM keys authorized to invoke the ADP
+autoclocker API.
+
 **Example usage**:
 
 This requires that the `awsconfig.ini` file has the wrapped data key for the user saved from a

@@ -1,3 +1,23 @@
+"""Allows saving of user's ADP credentials to the ADP autoclocker secure credential store. An
+encrypted key is returned to the client, which is used to decrypt credentials in future requests.
+Every time credentials are successfully saved, a new encrypted key is generated and previous keys
+are invalidated.
+
+This operation must be performed at least once before using any features of the autoclocker service
+requiring authentication with ADP. The encrypted key returned from a successful save operation is
+stored in the `awsconfi.ini` file. If it is lost, credentials must be saved again to generate a new
+key.
+
+The `awsconfig.ini` file must also contain a set of AWS IAM keys authorized to invoke the ADP
+autoclocker API.
+
+Example usage:
+
+```python
+import aws_adp_client.savecreds_client as aws_savecreds
+aws_savecreds('user@example.com', 'password123')
+```
+"""
 import configparser
 import json
 import requests

@@ -70,7 +70,7 @@ if __name__ == '__main__':
         main()
     except ParseFailure as ex:
         with open(LOG_PATH, 'a', encoding='utf-8') as log:
-            log.write('{}\n{}\n'.format(str(ex), ex.log()))
+            log.write(f'{str(ex)}\n{ex.log()}\n')
         raise ex
     except Exception as ex:
         with open(LOG_PATH, 'a', encoding='utf-8') as log:

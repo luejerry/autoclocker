@@ -57,8 +57,7 @@ def read_config() -> None:
         WORK_HOURS = timedelta(hours=config.getfloat('DEFAULT', 'work_hours'))
         HOURS_RESOLUTION = timedelta(
             minutes=config.getfloat('DEFAULT', 'hours_resolution'))
-    print("You are working {} hours today.".format(
-        WORK_HOURS.total_seconds() / 3600))
+    print(f"You are working {WORK_HOURS.total_seconds() / 3600} hours today.")
 
 
 def login_prompt() -> Tuple[str, str]:
@@ -156,9 +155,9 @@ def clock_inout(session: requests.Session, cust_id: str, emp_id: str, is_in: boo
     }
     response = session.post(url, json=payload)
     if 'Operation Successful' in response.text:
-        print('You have clocked {}.'.format('in' if is_in else 'out'))
+        print(f"You have clocked {'in' if is_in else 'out'}.")
     else:
-        print('Error clocking {}.'.format('in' if is_in else 'out'))
+        print(f"Error clocking {'in' if is_in else 'out'}.")
     return
 
 
@@ -380,9 +379,8 @@ def calculate_summary(
 def display_summary(time_remaining: timedelta, time_to_out: datetime) -> None:
     """Formats and prints supplied timesheet summary information."""
     print(
-        'You have {} hours remaining.'.format(hours_delta(time_remaining)),
-        'You should clock out at {}.'.format(
-            tformatter(time_to_out)) if time_to_out else ''
+        f'You have {hours_delta(time_remaining)} hours remaining.',
+        f'You should clock out at {tformatter(time_to_out)}.' if time_to_out else ''
     )
 
 
@@ -481,8 +479,7 @@ def handle_auto(time_to_out: datetime, current_time: datetime, user: str, is_in:
     exact_remaining = time_to_out - current_time
     scheduled_time = aws_scheduler.execute_saved_scheduler(
         user, exact_remaining)
-    print('AWS auto-clockout scheduled for {}.'.format(
-        tformatter(scheduled_time.astimezone(tz=None))))
+    print(f'AWS auto-clockout scheduled for {tformatter(scheduled_time.astimezone(tz=None))}.')
 
 
 def main() -> None:

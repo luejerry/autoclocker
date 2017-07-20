@@ -15,7 +15,7 @@ Example usage:
 
 ```python
 import aws_adp_client.savecreds_client as aws_savecreds
-aws_savecreds('user@example.com', 'password123')
+aws_savecreds.execute_save_creds('user@example.com', 'password123')
 ```
 """
 import configparser

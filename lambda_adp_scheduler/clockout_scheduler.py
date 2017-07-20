@@ -4,8 +4,8 @@ import boto3
 
 RULE_ARN = 'arn:aws:events:us-west-2:416241143428:rule/scheduleClockOut'
 RULE_NAME = 'scheduleClockOut'
-TARGET_ARN = 'arn:aws:lambda:us-west-2:416241143428:function:adpSaveCreds'
-TARGET_NAME = 'adpSaveCreds'
+TARGET_ARN = 'arn:aws:lambda:us-west-2:416241143428:function:adpClockOut'
+TARGET_NAME = 'adpClockOut'
 
 cloudwatch = boto3.client('events')
 lambdaclient = boto3.client('lambda')
@@ -58,14 +58,17 @@ def set_target(target_input: dict) -> bool:
         ]
     }
     result = cloudwatch.put_targets(**target)
-    # permission = {
-    #     'FunctionName': TARGET_NAME,
-    #     'StatementId': RULE_NAME + '-' + TARGET_NAME,
-    #     'Action': 'lambda:InvokeFunction',
-    #     'Principal': 'events.amazonaws.com',
-    #     'SourceArn': RULE_ARN
-    # }
-    # lambdaclient.add_permission(**permission)
+    permission = {
+        'FunctionName': TARGET_NAME,
+        'StatementId': RULE_NAME + '-' + TARGET_NAME,
+        'Action': 'lambda:InvokeFunction',
+        'Principal': 'events.amazonaws.com',
+        'SourceArn': RULE_ARN
+    }
+    try:
+        lambdaclient.add_permission(**permission)
+    except:
+        print('Cloudwatch permission already exists, skipping.')
     return result['FailedEntryCount'] == 0
 
 
@@ -98,10 +101,6 @@ def lambda_handler(event, context):
         return respond(ex)
     duration = timedelta(minutes=minutes)
     schedule_time = datetime.utcnow() + duration
-    # try:
-    #     time = datetime.strptime(timestr, '%Y-%m-%dT%H:%M:%S')
-    # except ValueError as ex:
-    #     return respond(ex)
     schedule_event(schedule_time)
     target_input = {
         "UserId": userid,

@@ -220,7 +220,7 @@ def parse_response(response_text: str) -> Tuple[List[datetime], List[datetime], 
     # Scrape the page for timesheet information
     htmltree = html.fromstring(response_text)
     div_activities = htmltree.get_element_by_id('divActivities', None)
-    if len(div_activities) == 0:
+    if div_activities is None or len(div_activities) == 0:
         div_login = htmltree.get_element_by_id('mainLoginWrapper', None)
         if div_login:
             print('Login session expired.')

@@ -5,3 +5,5 @@ config.ini
 desktop.ini
 *.zip
 ~*
+awsconfig.ini
+*.log

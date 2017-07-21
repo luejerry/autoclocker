@@ -56,7 +56,7 @@ def execute_scheduler(user: str, key: str, out_time: timedelta) -> datetime:
 
     Parameters:
     * `user`: ADP username.
-    * `key`: AES key for saved password.
+    * `key`: encrypted KMS data key for saved password.
     * `out_time`: minutes in future to clock out.
 
     Returns: the scheduled clockout time returned from the service, as a UTC timezone-aware

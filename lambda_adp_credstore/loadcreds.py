@@ -59,7 +59,7 @@ def lambda_handler(event, context):
     ```json
     {
         "UserId": ADP username,
-        "Key": encrypted KMS data key
+        "Key": encrypted KMS data key, base64 encoded
     }
     ```
 
@@ -75,18 +75,18 @@ def lambda_handler(event, context):
     try:
         body = json.loads(event['body'])
         userid = body['UserId']
-        key = body['Key']
+        key_encoded = body['Key']
     except KeyError as ex:
         return respond(ex)
 
-    key_decoded = decode_b64(key)
+    encrypted_datakey = decode_b64(key_encoded)
     try:
         ciphertext = query_ciphertext(userid)
     except KeyError as ex:
         return respond(ex)
 
-    unwrapped_key = decrypt_kms(key_decoded)
-    decrypted = decrypt_aes(ciphertext, unwrapped_key)
+    data_key = decrypt_kms(encrypted_datakey)
+    decrypted = decrypt_aes(ciphertext, data_key)
     response_body = {
         'UserId': userid,
         'Password': decrypted

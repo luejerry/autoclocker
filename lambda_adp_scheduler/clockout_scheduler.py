@@ -10,6 +10,7 @@ TARGET_NAME = 'adpClockOut'
 cloudwatch = boto3.client('events')
 lambdaclient = boto3.client('lambda')
 
+
 def respond(err, res=None) -> dict:
     return {
         'statusCode': '400' if err else '200',
@@ -18,6 +19,7 @@ def respond(err, res=None) -> dict:
             'Content-Type': 'application/json'
         }
     }
+
 
 def make_cronstr(time: datetime) -> str:
     """Converts a supplied datetime to a cron expression.
@@ -80,7 +82,7 @@ def lambda_handler(event, context):
     {
         "ScheduleTime": minutes from now,
         "UserId": ADP username,
-        "Key": AES key
+        "Key": encrypted KMS data key
     }
     ```
 
@@ -96,7 +98,7 @@ def lambda_handler(event, context):
         body = json.loads(event['body'])
         minutes = body['ScheduleTime']
         userid = body['UserId']
-        aes_key = body['Key']
+        encrypted_datakey = body['Key']
     except KeyError as ex:
         return respond(ex)
     duration = timedelta(minutes=minutes)
@@ -104,7 +106,7 @@ def lambda_handler(event, context):
     schedule_event(schedule_time)
     target_input = {
         "UserId": userid,
-        "Key": aes_key
+        "Key": encrypted_datakey
     }
     event['body'] = json.dumps(target_input)
     target_result = set_target(event)

@@ -1,18 +1,13 @@
-"""Utility to assist with calculating optimal clock-out times on the ADP web payroll platform.
-Authenticates with the ADP web portal <https://workforcenow.adp.com> and scrapes timesheet
-information for the current day. The user may then clock in or out without needing to use the
-web application.
+"""Clocks user out of ADP with credentials retrieved from the credential store. The incoming
+request must be in the form of an AWS API Gateway Proxy event, with the minimum fields:
 
-May be run in interactive mode by executing the script directly. Other semi-interactive and
-noninteractive entry points are available for scripting use:
-
-* `main_withlogin`: run interactively, but without prompting for credentials.
-* `main_silent_clockin`: clock in silently.
-* `main_silent_clockout`: clock out silently.
-
-Two configurable constants are defined:
-* `WORK_HOURS`: Desired hours of work per day. (Default: 8 hours)
-* `HOURS_RESOLUTION`: Smallest increment of time that is counted for pay. (Default: 15 minutes)
+```json
+{
+    "body": {
+        "UserId": ADP Username,
+        "Key": encrypted KMS data key
+    }
+}
 """
 import re
 import json
@@ -24,6 +19,7 @@ import boto3
 
 CRED_READER = 'adpLoadCreds'
 lambda_client = boto3.client('lambda')
+
 
 class Login(Enum):
     SUCCESS = 0
@@ -48,10 +44,8 @@ def login_session(user: str, password: str) -> (requests.Session, requests.Respo
     Returns:
     * `session`: `requests.Session` object. On successful login, should contain the necessary
       authentication cookies.
-    * `response`: `requests.Response` object of server response. On successful login, should
-      be the main web application page.
-
-    Side effects: None.
+    * `response`: `requests.Response` object of server response. On successful login, should be the
+      main web application page.
     """
     session = requests.Session()
     url = 'https://workforcenow.adp.com/ezLaborManagerNet/UI4/WFN/Portlet/MyTime.aspx'
@@ -75,8 +69,6 @@ def parse_ids(response_text: str) -> (str, str):
     Returns:
     * `cust_id`: customer ID string.
     * `emp_id`: employee ID string.
-
-    Side effects: None.
     """
     cust_id = re.search(r"var _custID = '(\w*)'", response_text).group(1)
     emp_id = re.search(r"var _employeeId = '(\w*)'", response_text).group(1)
@@ -84,8 +76,8 @@ def parse_ids(response_text: str) -> (str, str):
 
 
 def clock_inout(session: requests.Session, cust_id: str, emp_id: str, is_in: bool) -> Login:
-    """Clocks user in or out. Requires an authenticated session. The customer and employee IDs
-    must be scraped from the authenticated web application.
+    """Clocks user in or out. Requires an authenticated session. The customer and employee IDs must
+    be scraped from the authenticated ADP application.
 
     Parameters:
     * `session`: An authenticated `request.Session` object.
@@ -93,9 +85,7 @@ def clock_inout(session: requests.Session, cust_id: str, emp_id: str, is_in: boo
     * `emp_id`: ID of employee.
     * `is_in`: `True` to clock in, `False` to clock out.
 
-    Returns: None.
-
-    Side effects: Prints to standard output.
+    Returns: `Login.SUCCESS` or `Login.FAIL`.
     """
     url = (
         'https://workforcenow.adp.com/ezLaborManagerNet/UI4/Common/TLMRevitServices.asmx'
@@ -116,18 +106,6 @@ def clock_inout(session: requests.Session, cust_id: str, emp_id: str, is_in: boo
 
 
 def clock_out(session: requests.Session, cust_id: str, emp_id: str) -> Login:
-    """Clocks user out. Requires an authenticated session. The customer and employee IDs must
-    be scraped from the authenticated web application.
-
-    Parameters:
-    * `session`: An authenticated `request.Session` object.
-    * `cust_id`: ID of ADP customer (employer).
-    * `emp_id`: ID of employee.
-
-    Returns: None.
-
-    Side effects: Prints to standard output.
-    """
     return clock_inout(session, cust_id, emp_id, False)
 
 
@@ -139,14 +117,40 @@ def main_silent_clockout(username: str, password: str) -> Login:
 
 
 def lambda_handler(event, context):
-    retrieve_request = {
+    """Sends a clock-out request to ADP using credentials retrieved from the credential store.
+    Request body must be in the format:
+
+    ```json
+    {
+        "UserId": ADP username,
+        "Key": encrypted KMS data key
+    }
+    ```
+
+    If successful, responds `200 OK` with the content:
+
+    ```json
+    {
+        "result": "success"
+    }
+    ```
+
+    If authentication with ADP failed, responds `200 OK` with the content:
+
+    ```json
+    {
+        "result" "fail"
+    }
+    ```
+    """
+    creds_request_body = {
         'FunctionName': CRED_READER,
         'Payload': json.dumps(event)
     }
-    retrieve_response = lambda_client.invoke(**retrieve_request)
+    creds_response = lambda_client.invoke(**creds_request_body)
     try:
-        response_full = json.loads(retrieve_response['Payload'].read())
-        body = json.loads(response_full['body'])
+        payload = json.loads(creds_response['Payload'].read())
+        body = json.loads(payload['body'])
         user = body['UserId']
         key = body['Password']
     except KeyError as ex:

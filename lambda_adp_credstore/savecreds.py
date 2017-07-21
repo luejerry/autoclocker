@@ -7,7 +7,7 @@ import base64
 dynamo = boto3.client('dynamodb')
 kms = boto3.client('kms')
 TABLE_NAME = 'AdpCreds'
-KMS_KEY = 'alias/adp_credential_wrapper'
+KMS_MASTERKEY = 'alias/adp_credential_wrapper'
 
 def respond(err, res=None) -> dict:
     return {
@@ -51,11 +51,11 @@ def encrypt_kmskey(plaintext: str, key_id: str) -> (bytes, bytes):
         'KeySpec': 'AES_256'
     }
     kms_response = kms.generate_data_key(**kms_request)
-    key_256 = kms_response['Plaintext']
-    wrapped_key = kms_response['CiphertextBlob']
-    aes = pyaes.AESModeOfOperationCTR(key_256)
+    data_key = kms_response['Plaintext']
+    encrypted_datakey = kms_response['CiphertextBlob']
+    aes = pyaes.AESModeOfOperationCTR(data_key)
     ciphertext = aes.encrypt(bytes(plaintext, 'utf-8'))
-    return (ciphertext, wrapped_key)
+    return (ciphertext, encrypted_datakey)
 
 def lambda_handler(event, context):
     """Creates or updates a record in the AdpCreds table. The request body must be in the format:
@@ -72,7 +72,7 @@ def lambda_handler(event, context):
     ```json
     {
         "UserId": ADP username,
-        "Key": AES key, base64 encoded
+        "Key": KMS encrypted data key, base64 encoded
     }
     ```
 
@@ -86,7 +86,7 @@ def lambda_handler(event, context):
         password = body['Password']
     except KeyError as ex:
         return respond(ex)
-    (ciphertext, aes_key) = encrypt_kmskey(password, KMS_KEY)
+    (ciphertext, encrypted_datakey) = encrypt_kmskey(password, KMS_MASTERKEY)
     record = {
         'TableName': TABLE_NAME,
         'Key': {
@@ -104,6 +104,6 @@ def lambda_handler(event, context):
     dynamo.update_item(**record)
     response_body = {
         'UserId': userid,
-        'Key': base64.b64encode(aes_key).decode('utf-8')
+        'Key': base64.b64encode(encrypted_datakey).decode('utf-8')
     }
     return respond(None, response_body)
